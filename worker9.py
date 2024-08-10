@@ -58,7 +58,6 @@ def setup_driver():
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
-
 def solve_captcha(driver, sitekey, pageurl):
     try:
         response = requests.post("http://2captcha.com/in.php", data={
