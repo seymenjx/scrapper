@@ -7,4 +7,3 @@ worker: python worker6.py
 worker: python worker7.py
 worker: python worker8.py
 worker: python worker9.py
-worker: python worker10.py
