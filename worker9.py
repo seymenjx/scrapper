@@ -50,8 +50,6 @@ print(API_KEY)
 # Production Code
 def setup_driver():
     chrome_options = Options()
-    chrome_options.binary_location = "/app/.chrome-for-testing/chrome-linux64/chrome"
-    service = Service("/app/.chrome-for-testing/chromedriver")
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
