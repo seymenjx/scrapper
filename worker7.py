@@ -33,22 +33,22 @@ AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
 
 print(API_KEY)
 # For testing 
-def setup_driver():
-    ua = UserAgent()
-    user_agent = ua.random
-    print(f"Kullanıcı Ajanı: {user_agent}")
-    options = Options()
-    options.add_argument(f'--user-agent={user_agent}')
-    options.add_argument('--ignore-certificate-errors')
-    options.add_argument('--ignore-ssl-errors')
-    options.add_argument('--disable-web-security')
-    path = "/Users/griffinannshuals/.wdm/drivers/chromedriver/mac64/127.0.6533.99/chromedriver-mac-arm64/chromedriver"
-    service = Service(executable_path=path)
-    driver = webdriver.Chrome(service=service, options=options)
-    return driver
+# def setup_driver():
+#     ua = UserAgent()
+#     user_agent = ua.random
+#     print(f"Kullanıcı Ajanı: {user_agent}")
+#     options = Options()
+#     options.add_argument(f'--user-agent={user_agent}')
+#     options.add_argument('--ignore-certificate-errors')
+#     options.add_argument('--ignore-ssl-errors')
+#     options.add_argument('--disable-web-security')
+#     path = "/Users/griffinannshuals/.wdm/drivers/chromedriver/mac64/127.0.6533.99/chromedriver-mac-arm64/chromedriver"
+#     service = Service(executable_path=path)
+#     driver = webdriver.Chrome(service=service, options=options)
+#     return driver
 
 # Production Code
-# def setup_driver():
+def setup_driver():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
