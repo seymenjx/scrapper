@@ -264,22 +264,17 @@ def initialize_search(driver, line, hilal):
         search_field.clear()
         search_field.send_keys(str(line))
 
-        if line == 2024:
-            search_field1 = WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.XPATH, '//*[@id="esasNoSira1"]'))
-            )
-            search_field1.clear()
-            search_field1.send_keys("1")
-
-            search_field2 = WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.XPATH, '//*[@id="esasNoSira2"]'))
-            )
-            search_field2.clear()
-            search_field2.send_keys("999999")
-
-        search_button = WebDriverWait(driver, 20).until(
-            EC.element_to_be_clickable((By.XPATH, '//*[@id="detaylıAramaG"]'))
+        search_field1 = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.XPATH, '//*[@id="esasNoSira1"]'))
         )
+        search_field1.clear()
+        search_field1.send_keys("1")
+
+        search_field2 = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.XPATH, '//*[@id="esasNoSira2"]'))
+        )
+        search_field2.clear()
+        search_field2.send_keys("999999")
         
         try:
             # Try regular click first
@@ -458,5 +453,5 @@ def upload_to_s3(file_path, bucket, object_name):
 input_dir = os.path.join(os.getcwd(), 'input')
 
 pageurl = "https://karararama.yargitay.gov.tr/"
-for line in ['2014']:
+for line in [2014]:
     process_line(line, pageurl)
