@@ -114,10 +114,13 @@ def apply_captcha_solution(driver, captcha_solution):
         driver.execute_script("arguments[0].style.display = 'block';", recaptcha_response_element)
         
         # Set the CAPTCHA solution
-        driver.execute_script(f'arguments[0].innerHTML = "{captcha_solution}";', recaptcha_response_element)
+        driver.execute_script(f'arguments[0].value = "{captcha_solution}";', recaptcha_response_element)
+        
+        # Dispatch the input event
+        driver.execute_script("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", recaptcha_response_element)
         
         # Wait for any potential callback to process
-        time.sleep(2)
+        time.sleep(5)
         
         # Check if CAPTCHA is solved (you might need to adjust this based on the website's behavior)
         try:
@@ -204,6 +207,7 @@ def check_captcha(driver):
             sitekey = is_display_captcha_element.get_attribute('data-sitekey')
            
             if is_display_captcha_element and sitekey:
+                driver.refresh()
                 result = process_captcha(driver, sitekey, driver.current_url)
                 if result:
                     print("Captcha Solved!")
@@ -219,7 +223,7 @@ def check_captcha(driver):
         except Exception as e:
             print(f"Error checking for CAPTCHA: {str(e)}")
         
-        time.sleep(5)
+        time.sleep(2)
     
     print("Failed to solve CAPTCHA after maximum attempts.")
     return False
@@ -233,7 +237,7 @@ def wait_for_captcha_to_disappear(driver):
     except TimeoutException:
         print("Error: CAPTCHA iframe did not disappear within the expected time.")
 
-def initialize_search(driver, line):
+def initialize_search(driver, line, hilal):
     try:
         # First, check for CAPTCHA
         if check_captcha(driver):
@@ -297,7 +301,18 @@ def initialize_search(driver, line):
         record = driver.find_element(By.XPATH, "//*[@id='detayAramaSonuclar_length']/label/select/option[4]")
         record.click()
 
-        time.sleep(1)
+        time.sleep(2)
+
+        # navigate to the page to be continued
+        page = 1
+        while page < hilal:
+            element = WebDriverWait(driver, 40).until(
+                EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
+            element.click()
+            page += 1
+            time.sleep(0.1)
+
+        time.sleep(0.5)
         max_pages = int(total_results.text) // 100 + 1
 
         html = driver.page_source
@@ -338,7 +353,7 @@ def process_line(line, pageurl):
         global max_pages
         global data 
         global element_rows
-        max_pages, data, element_rows = initialize_search(driver, line)
+        max_pages, data, element_rows = initialize_search(driver, line, hilal)
         
         # Iterrate through all the pages
         while hilal <= max_pages:
@@ -381,25 +396,23 @@ def process_line(line, pageurl):
                                 esas.write('\n')
                         print("File Saved: ", file_name + '.txt')
 
-                        # # Upload to S3
-                        # upload_to_s3( os.path.join(output_dir, f'{sanitized_file_name}.txt'), AWS_BUCKET_NAME, f'{sanitized_file_name}.txt')
-                        # print("first")
-                        # # Remove file from output directory after uploading to S3
-                        # os.remove(os.path.join(output_dir, f'{sanitized_file_name}.txt'))
-                        # print("second")
+                        # Upload to S3
+                        upload_to_s3( os.path.join(output_dir, f'{sanitized_file_name}.txt'), AWS_BUCKET_NAME, f'{sanitized_file_name}.txt')
+                        # Remove file from output directory after uploading to S3
+                        os.remove(os.path.join(output_dir, f'{sanitized_file_name}.txt'))
                     
                         i += 1
                     except Exception as e:
                         print("Error Occurred: " + str(e))
                         check_captcha(driver)
                         wait_for_captcha_to_disappear(driver)
-                        max_pages, data, element_rows = initialize_search(driver, line)
+                        max_pages, data, element_rows = initialize_search(driver, line, hilal)
 
                 element = WebDriverWait(driver, 40).until(
                     EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
                 element.click()
                 hilal += 1
-                time.sleep(1)
+                time.sleep(0.5)
                 # Move to the next page
                 print("Moved to Next Page: " + str(hilal))
             
@@ -407,13 +420,12 @@ def process_line(line, pageurl):
                 print("Error Occurred: " + str(e))
                 check_captcha(driver)
                 wait_for_captcha_to_disappear(driver)
-                max_pages, data, element_rows = initialize_search(driver, line)
-                print("done")
+                max_pages, data, element_rows = initialize_search(driver, line, hilal)
     except Exception as e:
         print("Error Occurred: " + str(e))
         check_captcha(driver)
         wait_for_captcha_to_disappear(driver)
-        max_pages, data, element_rows = initialize_search(driver, line)
+        max_pages, data, element_rows = initialize_search(driver, line, hilal)
 
     finally:
         driver.quit()
@@ -446,5 +458,5 @@ def upload_to_s3(file_path, bucket, object_name):
 input_dir = os.path.join(os.getcwd(), 'input')
 
 pageurl = "https://karararama.yargitay.gov.tr/"
-for line in range(2024, 2006, -1):
+for line in ['2017', '2023']:
     process_line(line, pageurl)
