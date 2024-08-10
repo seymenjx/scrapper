@@ -275,6 +275,9 @@ def initialize_search(driver, line, hilal):
         )
         search_field2.clear()
         search_field2.send_keys("999999")
+        search_button = WebDriverWait(driver, 20).until(
+            EC.element_to_be_clickable((By.XPATH, '//*[@id="detaylıAramaG"]'))
+        )
         
         try:
             # Try regular click first
