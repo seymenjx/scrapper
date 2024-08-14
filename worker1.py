@@ -239,7 +239,7 @@ def wait_for_captcha_to_disappear(driver):
     except TimeoutException:
         print("Error: CAPTCHA iframe did not disappear within the expected time.")
 
-def initialize_search(driver, line, hilal, start):
+def initialize_search(driver, line, hilal):
     try:
         # First, check for CAPTCHA
         if check_captcha(driver):
