@@ -8,3 +8,9 @@ worker7: python worker7.py
 worker8: python worker8.py
 worker9: python worker9.py
 worker10: python worker10.py
+worker11: python worker11.py
+worker12: python worker12.py
+worker13: python worker13.py
+worker14: python worker14.py
+worker15: python worker15.py
+worker16: python worker16.py

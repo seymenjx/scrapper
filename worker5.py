@@ -16,6 +16,7 @@ import re
 import os
 import boto3
 from dotenv import dotenv_values
+from alive_progress import alive_bar
 
 # Load .env.local values and update the os.environ dictionary
 config = {
@@ -340,7 +341,7 @@ def initialize_search(driver, line, hilal):
         print(f"Error in initialize_search: {str(e)}")
         return None, None, None
 
-def process_line(line, pageurl):
+def process_line(line, pageurl, start, end):
     print(f"Process started for year {line}")
     driver = setup_driver()
 
@@ -348,78 +349,82 @@ def process_line(line, pageurl):
         driver.get(pageurl)
         human_like_actions(driver)
 
-        hilal = 1
+        hilal = start
         global max_pages
         global data 
         global element_rows
         max_pages, data, element_rows = initialize_search(driver, line, hilal)
         
         # Iterrate through all the pages
-        while hilal <= max_pages:
-            try:
-                # Iterrate through all the rows
-                i = 0
-                while i < 100:          
-                    try:
-                        # Select the row 
-                        element_table = driver.find_element(By.ID, "detayAramaSonuclar")
-                        element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
-                        element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
-    
-                        element_rows[i].click()
-                        time.sleep(0.5)
+        print(max_pages)
+        with alive_bar(max_pages,title=f"Worker 5") as bar:
+            while hilal <= end:
+                try:
+                    # Iterrate through all the rows
+                    i = 0
+                    while i < 100:          
+                        try:
+                            # Select the row 
+                            element_table = driver.find_element(By.ID, "detayAramaSonuclar")
+                            element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
+                            element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
+        
+                            element_rows[i].click()
+                            time.sleep(0.5)
 
-                        # Scrap the content for that row 
-                        html = driver.page_source
-                        soup = BeautifulSoup(html, 'html.parser')
-                        satirlar = []
-                        for br in soup.findAll('br'):
-                            next_s = br.nextSibling
-                            if not (next_s and isinstance(next_s, NavigableString)):
-                                continue    
-                            next2_s = next_s.nextSibling
-                            if next2_s and isinstance(next2_s, Tag) and next2_s.name == 'br':
-                                text = str(next_s).strip()
-                                if text:
-                                    satirlar.append(next_s)
-                        if len(satirlar) == 0:
-                            raise Exception("No Content Found, Symptoms of Captcha")
-                        file_name = 'Esas:' + data[i][1].replace('/', ' ') + " " + 'Karar:' + data[i][2].replace('/', ' ')
-                        sanitized_file_name = sanitize_file_name(file_name)
-                        base_path = os.getcwd()
-                        output_dir = os.path.join(base_path, 'output')
-                        os.makedirs(output_dir, exist_ok=True)
-                        with open(os.path.join(output_dir, f'{sanitized_file_name}.txt'), 'w', encoding='utf-8') as esas:
-                            for satir in satirlar:
-                                esas.write(satir)
-                                esas.write('\n')
-                        print("File Saved: ", file_name + '.txt')
+                            # Scrap the content for that row 
+                            html = driver.page_source
+                            soup = BeautifulSoup(html, 'html.parser')
+                            satirlar = []
+                            for br in soup.findAll('br'):
+                                next_s = br.nextSibling
+                                if not (next_s and isinstance(next_s, NavigableString)):
+                                    continue    
+                                next2_s = next_s.nextSibling
+                                if next2_s and isinstance(next2_s, Tag) and next2_s.name == 'br':
+                                    text = str(next_s).strip()
+                                    if text:
+                                        satirlar.append(next_s)
+                            if len(satirlar) == 0:
+                                raise Exception("No Content Found, Symptoms of Captcha")
+                            file_name = 'Esas:' + data[i][1].replace('/', ' ') + " " + 'Karar:' + data[i][2].replace('/', ' ')
+                            sanitized_file_name = sanitize_file_name(file_name)
+                            base_path = os.getcwd()
+                            output_dir = os.path.join(base_path, 'output')
+                            os.makedirs(output_dir, exist_ok=True)
+                            with open(os.path.join(output_dir, f'{sanitized_file_name}.txt'), 'w', encoding='utf-8') as esas:
+                                for satir in satirlar:
+                                    esas.write(satir)
+                                    esas.write('\n')
+                            print("File Saved: ", file_name + '.txt')
 
-                        # Upload to S3
-                        upload_to_s3( os.path.join(output_dir, f'{sanitized_file_name}.txt'), AWS_BUCKET_NAME, f'{sanitized_file_name}.txt')
-                        # Remove file from output directory after uploading to S3
-                        os.remove(os.path.join(output_dir, f'{sanitized_file_name}.txt'))
-                    
-                        i += 1
-                    except Exception as e:
-                        print("Error Occurred: " + str(e))
-                        check_captcha(driver)
-                        wait_for_captcha_to_disappear(driver)
-                        max_pages, data, element_rows = initialize_search(driver, line, hilal)
+                            # Upload to S3
+                            upload_to_s3( os.path.join(output_dir, f'{sanitized_file_name}.txt'), AWS_BUCKET_NAME, f'{sanitized_file_name}.txt')
+                            # Remove file from output directory after uploading to S3
+                            os.remove(os.path.join(output_dir, f'{sanitized_file_name}.txt'))
+                        
+                            i += 1
+                        except Exception as e:
+                            print("Error Occurred: " + str(e))
+                            check_captcha(driver)
+                            wait_for_captcha_to_disappear(driver)
+                            max_pages, data, element_rows = initialize_search(driver, line, hilal)
 
-                element = WebDriverWait(driver, 40).until(
-                    EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
-                element.click()
-                hilal += 1
-                time.sleep(0.5)
-                # Move to the next page
-                print("Moved to Next Page: " + str(hilal))
-            
-            except Exception as e:
-                print("Error Occurred: " + str(e))
-                check_captcha(driver)
-                wait_for_captcha_to_disappear(driver)
-                max_pages, data, element_rows = initialize_search(driver, line, hilal)
+                    element = WebDriverWait(driver, 40).until(
+                        EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
+                    element.click()
+                    hilal += 1
+                    bar()
+                    time.sleep(0.5)
+                    # Move to the next page
+                    print("Moved to Next Page: " + str(hilal))
+                
+                except Exception as e:
+                    print("Error Occurred: " + str(e))
+                    check_captcha(driver)
+                    wait_for_captcha_to_disappear(driver)
+                    max_pages, data, element_rows = initialize_search(driver, line, hilal)
+                
     except Exception as e:
         print("Error Occurred: " + str(e))
         check_captcha(driver)
@@ -454,9 +459,11 @@ def upload_to_s3(file_path, bucket, object_name):
             print(f"Error checking if file exists: {e}")
 
 
+
+
 input_dir = os.path.join(os.getcwd(), 'input')
 
 
 pageurl = "https://karararama.yargitay.gov.tr/"
-for line in [2012]:
-    process_line(line, pageurl)
+for line in [[2012, 2813, 5044], [2013, 1, 2472]]:
+    process_line(line[0], pageurl, line[1], line[2])
