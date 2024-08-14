@@ -128,6 +128,7 @@ def apply_captcha_solution(driver, captcha_solution):
                 EC.presence_of_element_located((By.CSS_SELECTOR, ".recaptcha-checkbox-unchecked"))
             )
             print("CAPTCHA appears to be solved successfully.")
+            driver.refresh()
             return True
         except TimeoutException:
             print("CAPTCHA solution might not have been accepted.")
@@ -259,7 +260,7 @@ def initialize_search(driver, line, hilal):
         time.sleep(1)
         
         search_field = WebDriverWait(driver, 20).until(
-            EC.element_to_be_clickable((By.ID, "esasNoYil"))
+            EC.presence_of_element_located((By.ID, "esasNoYil"))
         )
         search_field.clear()
         search_field.send_keys(str(line))
