@@ -357,7 +357,7 @@ def process_line(line, pageurl, start, end):
         
         # Iterrate through all the pages
         print(max_pages)
-        with alive_bar(max_pages,title=f"Worker 6") as bar:
+        with alive_bar(max_pages,title=f"Worker 1") as bar:
             while hilal <= end:
                 try:
                     # Iterrate through all the rows

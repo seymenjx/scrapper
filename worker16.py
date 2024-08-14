@@ -357,7 +357,7 @@ def process_line(line, pageurl, start, end):
         
         # Iterrate through all the pages
         print(max_pages)
-        with alive_bar(max_pages,title=f"Worker 10") as bar:
+        with alive_bar(max_pages,title=f"Worker 1") as bar:
             while hilal <= end:
                 try:
                     # Iterrate through all the rows
@@ -457,6 +457,7 @@ def upload_to_s3(file_path, bucket, object_name):
         else:
             # Something else has gone wrong.
             print(f"Error checking if file exists: {e}")
+
 
 
 input_dir = os.path.join(os.getcwd(), 'input')
