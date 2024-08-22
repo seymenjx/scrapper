@@ -459,8 +459,9 @@ def upload_to_s3(file_path, bucket, object_name):
             print(f"Error checking if file exists: {e}")
 
 
+
 input_dir = os.path.join(os.getcwd(), 'input')
 
 pageurl = "https://karararama.yargitay.gov.tr/"
-for line in [[2023, 2597, 3157], [2024, 1, 251]]:
+for line in [[2020, 1 , 4126, 999999]]:
     process_line(line[0], pageurl, line[1], line[2])

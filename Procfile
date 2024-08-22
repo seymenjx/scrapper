@@ -14,3 +14,8 @@ worker13: python worker13.py
 worker14: python worker14.py
 worker15: python worker15.py
 worker16: python worker16.py
+worker17: python worker17.py
+worker18: python worker18.py
+worker19: python worker19.py
+worker20: python worker20.py
+worker21: python worker21.py

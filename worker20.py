@@ -463,5 +463,5 @@ def upload_to_s3(file_path, bucket, object_name):
 input_dir = os.path.join(os.getcwd(), 'input')
 
 pageurl = "https://karararama.yargitay.gov.tr/"
-for line in [[2012, 1, 5000, 17086 ]]:
+for line in [[2008, 1 , 2182, 999999],[2007, 1 , 1813, 999999]]:
     process_line(line[0], pageurl, line[1], line[2])
