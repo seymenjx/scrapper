@@ -365,10 +365,7 @@ def process_line(line, pageurl, start, end, start_number):
                     while i < 100:          
                         try:
                             # Select the row 
-                            element_table = driver.find_element(By.ID, "detayAramaSonuclar")
-                            element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
-                            element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
-        
+                            
                             element_rows[i].click()
                             time.sleep(0.5)
 
