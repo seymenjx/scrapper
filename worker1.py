@@ -327,14 +327,14 @@ def initialize_search(driver, line, hilal, start_number):
 
         print(f"{len(data)} Records Selected.")
 
-        time.sleep(0.5)
+        time.sleep(1)
         
-        element_table = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.ID, "detayAramaSonuclar")))
+        element_table = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, '//*[@id="detayAramaSonuclar"]')))
 
         element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
 
         element_rows = WebDriverWait(element_table_body, 10).until(
-            EC.element_to_be_clickable((By.TAG_NAME, 'tr'))
+            EC.presence_of_all_elements_located((By.TAG_NAME, 'tr'))
         )
         
         return max_pages, data, element_rows
@@ -367,14 +367,6 @@ def process_line(line, pageurl, start, end, start_number):
                     while i < 100:          
                         try:
                             # Select the row 
-                            # Wait until the table with ID 'detayAramaSonuclar' is present
-                            element_table = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.ID, "detayAramaSonuclar")))
-
-                            element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
-
-                            element_rows = WebDriverWait(element_table_body, 10).until(
-                                EC.element_to_be_clickable((By.TAG_NAME, 'tr'))
-                            )
 
                             element_rows[i].click()
                             time.sleep(0.5)
