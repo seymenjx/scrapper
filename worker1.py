@@ -329,11 +329,13 @@ def initialize_search(driver, line, hilal, start_number):
 
         time.sleep(0.5)
         
-        element_table = WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.ID, "detayAramaSonuclar"))
-        )
+        element_table = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.ID, "detayAramaSonuclar")))
+
         element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
-        element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
+
+        element_rows = WebDriverWait(element_table_body, 10).until(
+            EC.element_to_be_clickable((By.TAG_NAME, 'tr'))
+        )
         
         return max_pages, data, element_rows
 
@@ -365,10 +367,19 @@ def process_line(line, pageurl, start, end, start_number):
                     while i < 100:          
                         try:
                             # Select the row 
-                            
+                            # Wait until the table with ID 'detayAramaSonuclar' is present
+                            element_table = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.ID, "detayAramaSonuclar")))
+
+                            element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
+
+                            element_rows = WebDriverWait(element_table_body, 10).until(
+                                EC.element_to_be_clickable((By.TAG_NAME, 'tr'))
+                            )
+
                             element_rows[i].click()
                             time.sleep(0.5)
-
+                            print(element_rows[i])
+                            print("here there")
                             # Scrap the content for that row 
                             html = driver.page_source
                             soup = BeautifulSoup(html, 'html.parser')
