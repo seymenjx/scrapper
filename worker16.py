@@ -59,7 +59,6 @@ def setup_driver():
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
-
 def solve_captcha(driver, sitekey, pageurl):
     try:
         response = requests.post("http://2captcha.com/in.php", data={
@@ -92,7 +91,7 @@ def get_captcha_solution(request_id):
             elif 'CAPCHA_NOT_READY' not in result.get('request', ''):
                 print(f"Unexpected response: {result}")
                 return None
-            print("CAPTCHA solving...")
+            print("CAPTCHA solving >>")
         except requests.RequestException as e:
             print(f"Error getting CAPTCHA solution: {str(e)}")
         
@@ -163,7 +162,7 @@ def close_captcha_iframe(driver):
         print(f"Error: Unable to remove CAPTCHA iframes. {str(e)}")
 
 def process_captcha(driver, sitekey, pageurl):
-    print("CAPTCHA detected, solving...")
+    print("CAPTCHA detected, solving >>")
     
     try:
         captcha_iframe = WebDriverWait(driver, 20).until(
@@ -199,7 +198,7 @@ def process_captcha(driver, sitekey, pageurl):
         return False
 
 def check_captcha(driver):
-    print("Checking for Captcha ....")
+    print("Checking for Captcha >>>")
     max_attempts = 3
     for attempt in range(max_attempts):
         try:
@@ -239,7 +238,7 @@ def wait_for_captcha_to_disappear(driver):
     except TimeoutException:
         print("Error: CAPTCHA iframe did not disappear within the expected time.")
 
-def initialize_search(driver, line, hilal):
+def initialize_search(driver, line, hilal, start_number):
     try:
         # First, check for CAPTCHA
         if check_captcha(driver):
@@ -276,7 +275,7 @@ def initialize_search(driver, line, hilal):
             EC.presence_of_element_located((By.XPATH, '//*[@id="esasNoSira2"]'))
         )
         search_field2.clear()
-        search_field2.send_keys("999999")
+        search_field2.send_keys(str(start_number))
         search_button = WebDriverWait(driver, 20).until(
             EC.element_to_be_clickable((By.XPATH, '//*[@id="detaylıAramaG"]'))
         )
@@ -341,7 +340,7 @@ def initialize_search(driver, line, hilal):
         print(f"Error in initialize_search: {str(e)}")
         return None, None, None
 
-def process_line(line, pageurl, start, end):
+def process_line(line, pageurl, start, end, start_number):
     print(f"Process started for year {line}")
     driver = setup_driver()
 
@@ -353,11 +352,11 @@ def process_line(line, pageurl, start, end):
         global max_pages
         global data 
         global element_rows
-        max_pages, data, element_rows = initialize_search(driver, line, hilal)
+        max_pages, data, element_rows = initialize_search(driver, line, hilal, start_number)
         
         # Iterrate through all the pages
         print(max_pages)
-        with alive_bar(max_pages,title=f"Worker 1") as bar:
+        with alive_bar(max_pages,title=f"Worker 2") as bar:
             while hilal <= end:
                 try:
                     # Iterrate through all the rows
@@ -397,6 +396,7 @@ def process_line(line, pageurl, start, end):
                                     esas.write(satir)
                                     esas.write('\n')
                             print("File Saved: ", file_name + '.txt')
+                            print("Current Page :", hilal)
 
                             # Upload to S3
                             upload_to_s3( os.path.join(output_dir, f'{sanitized_file_name}.txt'), AWS_BUCKET_NAME, f'{sanitized_file_name}.txt')
@@ -408,7 +408,7 @@ def process_line(line, pageurl, start, end):
                             print("Error Occurred: " + str(e))
                             check_captcha(driver)
                             wait_for_captcha_to_disappear(driver)
-                            max_pages, data, element_rows = initialize_search(driver, line, hilal)
+                            max_pages, data, element_rows = initialize_search(driver, line, hilal, start_number)
 
                     element = WebDriverWait(driver, 40).until(
                         EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
@@ -423,13 +423,13 @@ def process_line(line, pageurl, start, end):
                     print("Error Occurred: " + str(e))
                     check_captcha(driver)
                     wait_for_captcha_to_disappear(driver)
-                    max_pages, data, element_rows = initialize_search(driver, line, hilal)
+                    max_pages, data, element_rows = initialize_search(driver, line, hilal, start_number)
                 
     except Exception as e:
         print("Error Occurred: " + str(e))
         check_captcha(driver)
         wait_for_captcha_to_disappear(driver)
-        max_pages, data, element_rows = initialize_search(driver, line, hilal)
+        max_pages, data, element_rows = initialize_search(driver, line, hilal,start_number)
 
     finally:
         driver.quit()
@@ -459,9 +459,8 @@ def upload_to_s3(file_path, bucket, object_name):
             print(f"Error checking if file exists: {e}")
 
 
-
 input_dir = os.path.join(os.getcwd(), 'input')
 
 pageurl = "https://karararama.yargitay.gov.tr/"
 for line in [[2019, 1 , 4076, 999999]]:
-    process_line(line[0], pageurl, line[1], line[2])
+    process_line(line[0], pageurl, line[1], line[2], line[3])
