@@ -53,15 +53,14 @@ AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
 
 
 # Production Code
-
 def setup_driver():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
 
-    service = Service(ChromeDriverManager().install())
+    service = Service('/app/.chrome-for-testing/chrome-linux64/chromedriver')
+
     driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
 
