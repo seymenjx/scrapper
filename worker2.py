@@ -271,12 +271,12 @@ def initialize_search(driver, line, hilal, start_number, page_start):
         if check_captcha(driver):
             print("CAPTCHA handled, proceeding with search initialization.")
         
-        # Try to click the drop-down using JavaScript
+        # Scroll to and click the drop-down using JavaScript
         drop_down = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.XPATH, "//*[@id='detay']"))
         )
         driver.execute_script("arguments[0].scrollIntoView(true);", drop_down)
-        
+
         try:
             # Try regular click first
             drop_down.click()
@@ -285,7 +285,7 @@ def initialize_search(driver, line, hilal, start_number, page_start):
             driver.execute_script("arguments[0].click();", drop_down)
         
         time.sleep(1)
-        
+
         search_field = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.ID, "esasNoYil"))
         )
@@ -303,10 +303,11 @@ def initialize_search(driver, line, hilal, start_number, page_start):
         )
         search_field2.clear()
         search_field2.send_keys(str(start_number))
+
         search_button = WebDriverWait(driver, 20).until(
             EC.element_to_be_clickable((By.XPATH, '//*[@id="detaylıAramaG"]'))
         )
-        
+
         try:
             # Try regular click first
             search_button.click()
@@ -323,22 +324,28 @@ def initialize_search(driver, line, hilal, start_number, page_start):
         total_results = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.ID, "toplamSonuc"))
         )
-        # set no of records to 100
-        record = driver.find_element(By.XPATH, "//*[@id='detayAramaSonuclar_length']/label/select/option[4]")
+
+        # Set number of records to 100
+        record = WebDriverWait(driver, 20).until(
+            EC.element_to_be_clickable((By.XPATH, "//*[@id='detayAramaSonuclar_length']/label/select/option[4]"))
+        )
         record.click()
 
         time.sleep(2)
 
-        # navigate to the page to be continued
+        # Navigate through pages
         page = page_start
         while page < hilal:
             element = WebDriverWait(driver, 40).until(
-                EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
+                EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a'))
+            )
             element.click()
             page += 1
             time.sleep(0.5)
+
+            # Update start_number after moving to the next page
             first_record = WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.ID, '//*[@id="1"]/td[2]'))
+                EC.presence_of_element_located((By.XPATH, '//*[@id="1"]/td[2]'))
             )
             start_number = int(first_record.text.split("/")[1])
 
@@ -358,7 +365,7 @@ def initialize_search(driver, line, hilal, start_number, page_start):
         print(f"{len(data)} Records Selected.")
 
         time.sleep(1)
-        
+
         element_table = WebDriverWait(driver, 40).until(
             EC.presence_of_element_located((By.ID, "detayAramaSonuclar"))
         )
@@ -371,21 +378,28 @@ def initialize_search(driver, line, hilal, start_number, page_start):
         print(f"Error in initialize_search: {str(e)}")
         check_captcha(driver)
         wait_for_captcha_to_disappear(driver)
-        max_pages, data, element_rows, start_number, page = initialize_search(driver, line, hilal, start_number, page)
+        max_pages, data, element_rows, start_number, page = initialize_search(driver, line, hilal, start_number, page_start)
         return max_pages, data, element_rows, start_number, page
-    
+
+
+
 def click_element(element, driver):
     try:
-        WebDriverWait(driver, 10).until(
-            EC.visibility_of(element)
-        )
-        WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable(element)
-        )
-        ActionChains(driver).move_to_element(element).click().perform()
+        # Ensure the element is visible and clickable
+        WebDriverWait(driver, 10).until(EC.visibility_of(element))
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(element))
+        
+        # Scroll into view if needed
+        driver.execute_script("arguments[0].scrollIntoView(true);", element)
+        
+        # Try a regular click first
+        element.click()
+    except ElementClickInterceptedException:
+        # If regular click fails, use JavaScript click
+        driver.execute_script("arguments[0].click();", element)
     except Exception as e:
         print(f"Error clicking element: {e}")
-        # Optionally capture a screenshot for debugging
+        # Capture a screenshot for debugging
         driver.save_screenshot('error_screenshot.png')
     
 def process_line(line, pageurl, start, end, start_number):
