@@ -17,9 +17,6 @@ import os
 import boto3
 from dotenv import dotenv_values
 from alive_progress import alive_bar
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import ElementClickInterceptedException, NoSuchElementException, TimeoutException
-from selenium.common.exceptions import WebDriverException
 
 # Load .env.local values and update the os.environ dictionary
 config = {
@@ -56,11 +53,11 @@ AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
 def setup_driver():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
 
-    service = Service('/app/.chrome-for-testing/chrome-linux64/chromedriver')
-
+    service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
 
@@ -361,7 +358,7 @@ def initialize_search(driver, line, hilal, start_number, page_start):
 
         time.sleep(1)
         
-        element_table = WebDriverWait(driver, 40).until(
+        element_table = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.ID, "detayAramaSonuclar"))
         )
         element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
@@ -376,51 +373,6 @@ def initialize_search(driver, line, hilal, start_number, page_start):
         max_pages, data, element_rows, start_number, page = initialize_search(driver, line, hilal, start_number, page)
         return max_pages, data, element_rows, start_number, page
     
-def click_element(element, driver):
-    try:
-        # Wait until the element is visible and clickable
-        WebDriverWait(driver, 30).until(EC.visibility_of(element))
-        WebDriverWait(driver, 30).until(EC.element_to_be_clickable(element))
-        
-        # Scroll into view
-        driver.execute_script("arguments[0].scrollIntoView(true);", element)
-        
-        # Try a regular click first
-        element.click()
-        print("Element clicked successfully.")
-        
-    except ElementClickInterceptedException:
-        # Use JavaScript click if regular click fails
-        print("Element click intercepted, using JavaScript click.")
-        driver.execute_script("arguments[0].click();", element)
-        
-    except TimeoutException:
-        # Handle timeout exception
-        print("Timeout waiting for element to be clickable.")
-        driver.save_screenshot('timeout_error.png')
-        
-        # Retry logic
-        try:
-            WebDriverWait(driver, 30).until(EC.element_to_be_clickable(element))
-            driver.execute_script("arguments[0].click();", element)
-            print("Element clicked successfully after retry.")
-        except Exception as e:
-            print(f"Retry failed: {e}")
-            driver.save_screenshot('retry_error.png')
-            
-    except NoSuchElementException:
-        print("Element not found for clicking.")
-        driver.save_screenshot('element_not_found.png')
-        
-    except WebDriverException as e:
-        print(f"WebDriver exception occurred: {e}")
-        driver.save_screenshot('webdriver_exception.png')
-        
-    except Exception as e:
-        print(f"Unexpected error while clicking element: {e}")
-        driver.save_screenshot('unexpected_error.png')
-
-
 def process_line(line, pageurl, start, end, start_number):
     print(f"Process started for year {line}")
     driver = setup_driver()
@@ -452,30 +404,17 @@ def process_line(line, pageurl, start, end, start_number):
                         try:
                             # Select the row 
 
-                            # Ensure the table body is present and rows are loaded
                             element_table = WebDriverWait(driver, 20).until(
                                 EC.presence_of_element_located((By.ID, "detayAramaSonuclar"))
                             )
-                            element_table_body = WebDriverWait(driver, 20).until(
-                                EC.presence_of_element_located((By.TAG_NAME, 'tbody'))
-                            )
-                            element_rows = WebDriverWait(driver, 20).until(
-                                EC.presence_of_all_elements_located((By.TAG_NAME, 'tr'))
-                            )
-                            
-                            # Print debugging information
-                            if i < len(element_rows):
-                                print(f"Element {i} text: {element_rows[i].text}")
-                                print(f"Element {i} HTML: {element_rows[i].get_attribute('outerHTML')}")
-                            
-                                click_element(element_rows[i], driver)
-                            else:
-                                print(f"Index {i} out of range for element_rows")
+                            element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
+                            element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
+
+                            element_rows[i].click()
+                            time.sleep(0.5)
 
                             # Scrap the content for that row 
                             satirlar = extract_lines(driver)
-
-                            print(satirlar)
 
                             # if len(satirlar) == 0:
                             #     raise Exception("No Content Found, Symptoms of Captcha")
@@ -550,6 +489,7 @@ def upload_to_s3(file_path, bucket, object_name):
         else:
             # Something else has gone wrong.
             print(f"Error checking if file exists: {e}")
+
 
 
 input_dir = os.path.join(os.getcwd(), 'input')
