@@ -18,6 +18,8 @@ import boto3
 from dotenv import dotenv_values
 from alive_progress import alive_bar
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.common.exceptions import ElementClickInterceptedException, NoSuchElementException, TimeoutException
+
 
 # Load .env.local values and update the os.environ dictionary
 config = {
@@ -376,23 +378,28 @@ def initialize_search(driver, line, hilal, start_number, page_start):
     
 def click_element(element, driver):
     try:
-        # Ensure the element is visible and clickable
-        WebDriverWait(driver, 10).until(EC.visibility_of(element))
-        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(element))
+        # Wait until the element is visible and clickable
+        WebDriverWait(driver, 20).until(EC.visibility_of(element))
+        WebDriverWait(driver, 20).until(EC.element_to_be_clickable(element))
         
-        # Scroll into view if needed
+        # Scroll into view
         driver.execute_script("arguments[0].scrollIntoView(true);", element)
         
-        # Try a regular click first
+        # Try a regular click
         element.click()
+        print("Element clicked successfully.")
     except ElementClickInterceptedException:
         # If regular click fails, use JavaScript click
+        print("Element click intercepted, using JavaScript click.")
         driver.execute_script("arguments[0].click();", element)
+    except NoSuchElementException:
+        print("Element not found for clicking.")
+    except TimeoutException:
+        print("Timeout waiting for element to be clickable.")
     except Exception as e:
-        print(f"Error clicking element: {e}")
-        # Capture a screenshot for debugging
+        print(f"Unexpected error while clicking element: {e}")
         driver.save_screenshot('error_screenshot.png')
-    
+
 def process_line(line, pageurl, start, end, start_number):
     print(f"Process started for year {line}")
     driver = setup_driver()
