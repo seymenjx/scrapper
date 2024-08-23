@@ -32,7 +32,7 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
 
-print(API_KEY)
+
 # For testing 
 # def setup_driver():
 #     ua = UserAgent()
@@ -48,6 +48,7 @@ print(API_KEY)
 #     driver = webdriver.Chrome(service=service, options=options)
 #     return driver
 
+
 # Production Code
 def setup_driver():
     chrome_options = Options()
@@ -59,6 +60,7 @@ def setup_driver():
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
+
 def solve_captcha(driver, sitekey, pageurl):
     try:
         response = requests.post("http://2captcha.com/in.php", data={
@@ -238,7 +240,31 @@ def wait_for_captcha_to_disappear(driver):
     except TimeoutException:
         print("Error: CAPTCHA iframe did not disappear within the expected time.")
 
-def initialize_search(driver, line, hilal, start_number):
+def extract_lines(driver):
+    # Wait for the content to load
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+    # Get the page source and parse it with BeautifulSoup
+    html = driver.page_source
+    soup = BeautifulSoup(html, 'html.parser')
+
+    satirlar = []
+
+    # Find all <br> tags
+    for br in soup.findAll('br'):
+        next_s = br.nextSibling
+        if next_s and isinstance(next_s, NavigableString):
+            next2_s = next_s.nextSibling
+            if next2_s and isinstance(next2_s, Tag) and next2_s.name == 'br':
+                text = str(next_s).strip()
+                if text:
+                    satirlar.append(text)  # Append the text content
+
+    return satirlar
+        
+
+
+def initialize_search(driver, line, hilal, start_number, page_start):
     try:
         # First, check for CAPTCHA
         if check_captcha(driver):
@@ -303,13 +329,17 @@ def initialize_search(driver, line, hilal, start_number):
         time.sleep(2)
 
         # navigate to the page to be continued
-        page = 1
+        page = page_start
         while page < hilal:
             element = WebDriverWait(driver, 40).until(
                 EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
             element.click()
             page += 1
-            time.sleep(0.1)
+            time.sleep(0.5)
+            first_record = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.ID, '//*[@id="1"]/td[2]'))
+            )
+            start_number = int(first_record.text.split("/")[1])
 
         time.sleep(0.5)
         max_pages = int(total_results.text) // 100 + 1
@@ -326,7 +356,7 @@ def initialize_search(driver, line, hilal, start_number):
 
         print(f"{len(data)} Records Selected.")
 
-        time.sleep(0.5)
+        time.sleep(1)
         
         element_table = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.ID, "detayAramaSonuclar"))
@@ -334,12 +364,15 @@ def initialize_search(driver, line, hilal, start_number):
         element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
         element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
         
-        return max_pages, data, element_rows
+        return max_pages, data, element_rows, start_number, page
 
     except Exception as e:
         print(f"Error in initialize_search: {str(e)}")
-        return None, None, None
-
+        check_captcha(driver)
+        wait_for_captcha_to_disappear(driver)
+        max_pages, data, element_rows, start_number, page = initialize_search(driver, line, hilal, start_number, page)
+        return max_pages, data, element_rows, start_number, page
+    
 def process_line(line, pageurl, start, end, start_number):
     print(f"Process started for year {line}")
     driver = setup_driver()
@@ -352,7 +385,13 @@ def process_line(line, pageurl, start, end, start_number):
         global max_pages
         global data 
         global element_rows
-        max_pages, data, element_rows = initialize_search(driver, line, hilal, start_number)
+        global begin
+        global page_start
+
+        begin = start_number
+        page_start = start
+
+        max_pages, data, element_rows, begin, page_start = initialize_search(driver, line, hilal, begin, page_start)
         
         # Iterrate through all the pages
         print(max_pages)
@@ -364,28 +403,21 @@ def process_line(line, pageurl, start, end, start_number):
                     while i < 100:          
                         try:
                             # Select the row 
-                            element_table = driver.find_element(By.ID, "detayAramaSonuclar")
+
+                            element_table = WebDriverWait(driver, 20).until(
+                                EC.presence_of_element_located((By.ID, "detayAramaSonuclar"))
+                            )
                             element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
                             element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
-        
+
                             element_rows[i].click()
                             time.sleep(0.5)
 
                             # Scrap the content for that row 
-                            html = driver.page_source
-                            soup = BeautifulSoup(html, 'html.parser')
-                            satirlar = []
-                            for br in soup.findAll('br'):
-                                next_s = br.nextSibling
-                                if not (next_s and isinstance(next_s, NavigableString)):
-                                    continue    
-                                next2_s = next_s.nextSibling
-                                if next2_s and isinstance(next2_s, Tag) and next2_s.name == 'br':
-                                    text = str(next_s).strip()
-                                    if text:
-                                        satirlar.append(next_s)
-                            if len(satirlar) == 0:
-                                raise Exception("No Content Found, Symptoms of Captcha")
+                            satirlar = extract_lines(driver)
+
+                            # if len(satirlar) == 0:
+                            #     raise Exception("No Content Found, Symptoms of Captcha")
                             file_name = 'Esas:' + data[i][1].replace('/', ' ') + " " + 'Karar:' + data[i][2].replace('/', ' ')
                             sanitized_file_name = sanitize_file_name(file_name)
                             base_path = os.getcwd()
@@ -408,7 +440,7 @@ def process_line(line, pageurl, start, end, start_number):
                             print("Error Occurred: " + str(e))
                             check_captcha(driver)
                             wait_for_captcha_to_disappear(driver)
-                            max_pages, data, element_rows = initialize_search(driver, line, hilal, start_number)
+                            max_pages, data, element_rows, begin, page_start = initialize_search(driver, line, hilal, begin, page_start)
 
                     element = WebDriverWait(driver, 40).until(
                         EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
@@ -423,13 +455,13 @@ def process_line(line, pageurl, start, end, start_number):
                     print("Error Occurred: " + str(e))
                     check_captcha(driver)
                     wait_for_captcha_to_disappear(driver)
-                    max_pages, data, element_rows = initialize_search(driver, line, hilal, start_number)
+                    max_pages, data, element_rows, begin, page_start = initialize_search(driver, line, hilal, begin, page_start)
                 
     except Exception as e:
         print("Error Occurred: " + str(e))
         check_captcha(driver)
         wait_for_captcha_to_disappear(driver)
-        max_pages, data, element_rows = initialize_search(driver, line, hilal,start_number)
+        max_pages, data, element_rows, begin , page_start = initialize_search(driver, line, hilal,begin, page_start)
 
     finally:
         driver.quit()
