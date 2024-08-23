@@ -442,6 +442,8 @@ def process_line(line, pageurl, start, end, start_number):
                             # Scrap the content for that row 
                             satirlar = extract_lines(driver)
 
+                            print(satirlar)
+
                             # if len(satirlar) == 0:
                             #     raise Exception("No Content Found, Symptoms of Captcha")
                             file_name = 'Esas:' + data[i][1].replace('/', ' ') + " " + 'Karar:' + data[i][2].replace('/', ' ')
