@@ -17,6 +17,7 @@ import os
 import boto3
 from dotenv import dotenv_values
 from alive_progress import alive_bar
+from selenium.webdriver.common.action_chains import ActionChains
 
 # Load .env.local values and update the os.environ dictionary
 config = {
@@ -373,6 +374,38 @@ def initialize_search(driver, line, hilal, start_number, page_start):
         max_pages, data, element_rows, start_number, page = initialize_search(driver, line, hilal, start_number, page)
         return max_pages, data, element_rows, start_number, page
     
+def row_click(driver, i):
+    element_table = WebDriverWait(driver, 40).until(
+        EC.visibility_of_element_located((By.ID, "detayAramaSonuclar"))
+    )
+    element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
+    element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
+
+    element_rows[i].click()
+    # Scroll the Element into View
+    driver.execute_script("arguments[0].scrollIntoView();", element_rows[i])
+
+    # Check for Overlapping Elements and Move to the Element
+    actions = ActionChains(driver)
+    actions.move_to_element(element_rows[i])
+
+    # Wait for the Element to be Clickable
+    element = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "//your_xpath_here"))  # Replace with the correct XPath
+    )
+
+    # Retry Clicking with a simple retry mechanism
+    for _ in range(3):  # Try up to 3 times
+        try:
+            element.click()
+            break
+        except Exception as e:
+            time.sleep(1)  # Wait a bit before retrying
+
+    # Use JavaScript to click if the normal click does not work
+    driver.execute_script("arguments[0].click();", element_rows[i])
+    
+
 def process_line(line, pageurl, start, end, start_number):
     print(f"Process started for year {line}")
     driver = setup_driver()
@@ -404,13 +437,8 @@ def process_line(line, pageurl, start, end, start_number):
                         try:
                             # Select the row 
 
-                            element_table = WebDriverWait(driver, 20).until(
-                                EC.presence_of_element_located((By.ID, "detayAramaSonuclar"))
-                            )
-                            element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
-                            element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
+                            row_click(driver, i)
 
-                            element_rows[i].click()
                             time.sleep(0.5)
 
                             # Scrap the content for that row 
