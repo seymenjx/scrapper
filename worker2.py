@@ -359,7 +359,7 @@ def initialize_search(driver, line, hilal, start_number, page_start):
 
         time.sleep(1)
         
-        element_table = WebDriverWait(driver, 20).until(
+        element_table = WebDriverWait(driver, 40).until(
             EC.presence_of_element_located((By.ID, "detayAramaSonuclar"))
         )
         element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
@@ -375,23 +375,31 @@ def initialize_search(driver, line, hilal, start_number, page_start):
         return max_pages, data, element_rows, start_number, page
     
 def row_click(driver, i):
+    # Ensure the element table is visible
     element_table = WebDriverWait(driver, 40).until(
         EC.visibility_of_element_located((By.ID, "detayAramaSonuclar"))
     )
+    
+    # Find the table body and rows
     element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
     element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
 
-    element_rows[i].click()
+    # Generate the XPath for the row based on its index
+    row_xpath = '//*[@id="{}"]'.format(i + 1)
+
     # Scroll the Element into View
-    driver.execute_script("arguments[0].scrollIntoView();", element_rows[i])
+    element = WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located((By.XPATH, row_xpath))
+    )
+    driver.execute_script("arguments[0].scrollIntoView();", element)
 
     # Check for Overlapping Elements and Move to the Element
     actions = ActionChains(driver)
-    actions.move_to_element(element_rows[i])
+    actions.move_to_element(element).perform()
 
     # Wait for the Element to be Clickable
     element = WebDriverWait(driver, 20).until(
-        EC.element_to_be_clickable((By.XPATH, "//your_xpath_here"))  # Replace with the correct XPath
+        EC.element_to_be_clickable((By.XPATH, row_xpath))
     )
 
     # Retry Clicking with a simple retry mechanism
@@ -400,11 +408,11 @@ def row_click(driver, i):
             element.click()
             break
         except Exception as e:
+            print(f"Error clicking element: {e}")
             time.sleep(1)  # Wait a bit before retrying
 
     # Use JavaScript to click if the normal click does not work
-    driver.execute_script("arguments[0].click();", element_rows[i])
-    
+    driver.execute_script("arguments[0].click();", element)
 
 def process_line(line, pageurl, start, end, start_number):
     print(f"Process started for year {line}")
