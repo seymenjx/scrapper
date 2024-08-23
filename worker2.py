@@ -53,6 +53,7 @@ AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
 
 
 # Production Code
+
 def setup_driver():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
