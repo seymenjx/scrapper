@@ -19,7 +19,7 @@ from dotenv import dotenv_values
 from alive_progress import alive_bar
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import ElementClickInterceptedException, NoSuchElementException, TimeoutException
-
+from selenium.common.exceptions import WebDriverException
 
 # Load .env.local values and update the os.environ dictionary
 config = {
@@ -379,26 +379,47 @@ def initialize_search(driver, line, hilal, start_number, page_start):
 def click_element(element, driver):
     try:
         # Wait until the element is visible and clickable
-        WebDriverWait(driver, 20).until(EC.visibility_of(element))
-        WebDriverWait(driver, 20).until(EC.element_to_be_clickable(element))
+        WebDriverWait(driver, 30).until(EC.visibility_of(element))
+        WebDriverWait(driver, 30).until(EC.element_to_be_clickable(element))
         
         # Scroll into view
         driver.execute_script("arguments[0].scrollIntoView(true);", element)
         
-        # Try a regular click
+        # Try a regular click first
         element.click()
         print("Element clicked successfully.")
+        
     except ElementClickInterceptedException:
-        # If regular click fails, use JavaScript click
+        # Use JavaScript click if regular click fails
         print("Element click intercepted, using JavaScript click.")
         driver.execute_script("arguments[0].click();", element)
+        
+    except TimeoutException:
+        # Handle timeout exception
+        print("Timeout waiting for element to be clickable.")
+        driver.save_screenshot('timeout_error.png')
+        
+        # Retry logic
+        try:
+            WebDriverWait(driver, 30).until(EC.element_to_be_clickable(element))
+            driver.execute_script("arguments[0].click();", element)
+            print("Element clicked successfully after retry.")
+        except Exception as e:
+            print(f"Retry failed: {e}")
+            driver.save_screenshot('retry_error.png')
+            
     except NoSuchElementException:
         print("Element not found for clicking.")
-    except TimeoutException:
-        print("Timeout waiting for element to be clickable.")
+        driver.save_screenshot('element_not_found.png')
+        
+    except WebDriverException as e:
+        print(f"WebDriver exception occurred: {e}")
+        driver.save_screenshot('webdriver_exception.png')
+        
     except Exception as e:
         print(f"Unexpected error while clicking element: {e}")
-        driver.save_screenshot('error_screenshot.png')
+        driver.save_screenshot('unexpected_error.png')
+
 
 def process_line(line, pageurl, start, end, start_number):
     print(f"Process started for year {line}")
