@@ -17,6 +17,7 @@ import os
 import boto3
 from dotenv import dotenv_values
 from alive_progress import alive_bar
+from selenium.webdriver.common.action_chains import ActionChains
 
 # Load .env.local values and update the os.environ dictionary
 config = {
@@ -410,10 +411,11 @@ def process_line(line, pageurl, start, end, start_number):
                             element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
                             element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
 
-                            element_rows[i].click()
-                            time.sleep(0.5)
+                            row = element_rows[i]
+                            driver.implicitly_wait(10)
+                            ActionChains(driver).move_to_element(row).click(row).perform()
 
-                            # Scrap the content for that row 
+                            time.sleep(1)                            # Scrap the content for that row 
                             satirlar = extract_lines(driver)
 
                             # if len(satirlar) == 0:
