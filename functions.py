@@ -425,34 +425,30 @@ def process_line(line, pageurl, start, end, start_number):
                             ActionChains(driver).move_to_element(
                                 row).click(row).perform()
                           
-                            first_record = element_rows[0].find_elements(By.TAG_NAME, 'td')[1]
+                            first_record = element_rows[0].find_elements(By.TAG_NAME, 'td')[1].get_attribute("innerText")
 
-                            driver.execute_script(
-                                "arguments[0].scrollIntoView(true);", first_record)
+                            # driver.execute_script(
+                            #     "arguments[0].scrollIntoView(true);", first_record)
                             
-                            WebDriverWait(driver, 20).until(
-                                EC.visibility_of(first_record)
-                            )
+                            # WebDriverWait(driver, 20).until(
+                            #     EC.visibility_of(first_record)
+                            # )
 
-                            # Wait for the element to have text
-                            WebDriverWait(driver, 20).until(
-                                lambda d: first_record.text != ''
-                            )
 
-                            text = driver.execute_script(
-                                "return arguments[0].textContent;", first_record)
+                            # text = driver.execute_script(
+                            #     "return arguments[0].textContent;", first_record)
                             
-                            is_visible = driver.execute_script(
-                                "return (arguments[0].offsetParent !== null)", first_record)
+                            # is_visible = driver.execute_script(
+                            #     "return (arguments[0].offsetParent !== null)", first_record)
                             
-                            print(is_visible)
+                            # print(is_visible)
 
-                            print(text, "js text")
+                            # print(text, "js text")
                             
-                            if text:
-                                first_record = text
+                            # if text:
+                            #     first_record = text
 
-                            begin = int(first_record.text.split("/")[1])
+                            begin = int(first_record.split("/")[1])
 
                             # Scrap the content for that row
                             time.sleep(0.5)
