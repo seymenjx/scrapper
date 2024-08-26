@@ -420,20 +420,17 @@ def process_line(line, pageurl, start, end, start_number):
                                 By.TAG_NAME, 'tr')
 
                             row = element_rows[i]
-                            print("row",row)
-
-                            first_record = element_rows[0].find_elements(By.TAG_NAME, 'td')[
-                                1]
-
-                            print("first", first_record.text)
-
-                            begin = int(first_record.text.split("/")[1])
-
-                            print(begin,"begin")
 
                             driver.implicitly_wait(10)
                             ActionChains(driver).move_to_element(
                                 row).click(row).perform()
+                          
+                            first_record = element_rows[0].find_elements(By.TAG_NAME, 'td')
+
+                            for i in first_record:
+                                print(i.text, "text")
+                            
+                            begin = int(first_record.text.split("/")[1])
 
                             # Scrap the content for that row
                             time.sleep(0.5)
