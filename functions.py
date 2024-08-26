@@ -427,7 +427,7 @@ def process_line(line, pageurl, start, end, start_number):
                           
                             first_record = WebDriverWait(driver, 20).until(
                                 EC.presence_of_element_located(
-                                    (By.XPATH, '//*[@id = "1"]/td[2]'))
+                                    (By.XPATH, '//*[@id = "1"]/td[2]')))
                             
                             print(first_record)
                             print(first_record.text)
