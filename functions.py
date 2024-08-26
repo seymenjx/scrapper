@@ -426,8 +426,6 @@ def process_line(line, pageurl, start, end, start_number):
                                 1]
 
                             print("first", first_record)
-                            print("first", len(first_record))
-                            print("first", first_record.text)
 
                             begin = int(first_record.text.split("/")[1])
 
