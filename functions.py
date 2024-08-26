@@ -428,7 +428,7 @@ def process_line(line, pageurl, start, end, start_number):
                             first_record = element_rows[0].find_elements(By.TAG_NAME, 'td')[1]
 
                             driver.execute_script(
-                                "arguments[0].scrollIntoView(true);", element)
+                                "arguments[0].scrollIntoView(true);", first_record)
                             
                             WebDriverWait(driver, 20).until(
                                 EC.visibility_of(first_record)
@@ -440,15 +440,18 @@ def process_line(line, pageurl, start, end, start_number):
                             )
 
                             text = driver.execute_script(
-                                "return arguments[0].textContent;", element)
+                                "return arguments[0].textContent;", first_record)
                             
                             is_visible = driver.execute_script(
-                                "return (arguments[0].offsetParent !== null)", element)
+                                "return (arguments[0].offsetParent !== null)", first_record)
                             
                             print(is_visible)
 
                             print(text, "js text")
                             
+                            if text:
+                                first_record = text
+
                             begin = int(first_record.text.split("/")[1])
 
                             # Scrap the content for that row
