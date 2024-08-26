@@ -425,7 +425,7 @@ def process_line(line, pageurl, start, end, start_number):
                             first_record = element_rows[0].find_elements(By.TAG_NAME, 'td')[
                                 1]
 
-                            print("first", first_record)
+                            print("first", first_record.text)
 
                             begin = int(first_record.text.split("/")[1])
 
