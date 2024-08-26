@@ -425,11 +425,12 @@ def process_line(line, pageurl, start, end, start_number):
                             ActionChains(driver).move_to_element(
                                 row).click(row).perform()
                           
-                            first_record = element_rows[0].find_elements(By.TAG_NAME, 'td')
-
-                            for i in first_record:
-                                print(i.text, "text")
+                            first_record = WebDriverWait(driver, 20).until(
+                                EC.presence_of_element_located(
+                                    (By.XPATH, '//*[@id = "1"]/td[2]'))
                             
+                            print(first_record)
+                            print(first_record.text)
                             begin = int(first_record.text.split("/")[1])
 
                             # Scrap the content for that row
