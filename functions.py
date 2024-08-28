@@ -347,8 +347,10 @@ def initialize_search(driver, line, start_number):
             EC.presence_of_element_located((By.ID, "toplamSonuc"))
         )
         # set no of records to 100
-        record = driver.find_element(
-            By.XPATH, "//*[@id='detayAramaSonuclar_length']/label/select/option[4]")
+        record = WebDriverWait(driver, 20).until(
+            EC.element_to_be_clickable(
+                (By.XPATH, "//*[@id='detayAramaSonuclar_length']/label/select/option[4]"))
+        )
         record.click()
 
         time.sleep(2)
@@ -389,17 +391,17 @@ def process_line(line, pageurl, start, end, start_number):
         human_like_actions(driver)
 
         hilal = start
-        global max_pages
+        global g_max_pages
+        global c_max_pages
         global data
         global begin
 
         begin = start_number
 
-        max_pages, data = initialize_search(driver, line, begin)
-
+        g_max_pages, data = initialize_search(driver, line, begin)
+        c_max_pages = g_max_pages
         # Iterrate through all the pages
-        print(max_pages)
-        with alive_bar(max_pages, title=f"Worker 2") as bar:
+        with alive_bar(g_max_pages, title=f"Processing year: {line}") as bar:
             while True:
                 try:
                     # Iterrate through all the rows
@@ -467,13 +469,8 @@ def process_line(line, pageurl, start, end, start_number):
                                 for satir in satirlar:
                                     esas.write(satir)
                                     esas.write('\n')
-                            print("File Saved: ", file_name + '.txt')
 
-                            if end - max_pages < 0:
-                                print("Current Page :", (total[line] -  max_pages) + 1)
-                            else:
-                                print("Current Page:", (end - max_pages) + 1)
-
+                            print("Current Page:", (g_max_pages - c_max_pages) + 1 )
                             # Upload to S3
                             upload_to_s3(os.path.join(output_dir, f'{
                                          sanitized_file_name}.txt'), AWS_BUCKET_NAME, f'{sanitized_file_name}.txt')
@@ -486,7 +483,7 @@ def process_line(line, pageurl, start, end, start_number):
                             print("Error Occurred: " + str(e))
                             check_captcha(driver)
                             wait_for_captcha_to_disappear(driver)
-                            max_pages, data = initialize_search(
+                            c_max_pages, data = initialize_search(
                                 driver, line, begin)
                             hilal = 1
                             i = 0
@@ -503,23 +500,15 @@ def process_line(line, pageurl, start, end, start_number):
                     print("Error Occurred: " + str(e))
                     check_captcha(driver)
                     wait_for_captcha_to_disappear(driver)
-                    max_pages, data = initialize_search(
+                    c_max_pages, data = initialize_search(
                         driver, line, begin)
                     hilal = 1
-                    
-                if end - max_pages < 0:
-                    if ((total[line] - max_pages) + 1 >= end):
-                        break
-
-                else:
-                    if ((end - max_pages) + 1 >= end):
-                        break
 
     except Exception as e:
         print("Error Occurred: " + str(e))
         check_captcha(driver)
         wait_for_captcha_to_disappear(driver)
-        max_pages, data = initialize_search(driver, line, begin)
+        c_max_pages, data = initialize_search(driver, line, begin)
         hilal = 1
 
     finally:
