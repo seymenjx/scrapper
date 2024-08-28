@@ -18,7 +18,8 @@ import boto3
 from dotenv import dotenv_values
 from alive_progress import alive_bar
 from selenium.webdriver.common.action_chains import ActionChains
-from constants import total
+import traceback
+import logging
 
 # Load .env.local values and update the os.environ dictionary
 config = {
@@ -288,25 +289,29 @@ def extract_lines(driver):
 
 def initialize_search(driver, line, start_number):
     try:
-        # First, check for CAPTCHA
+        logging.info(f"Initializing search for line: {
+                     line}, start number: {start_number}")
+
+        # Handle CAPTCHA if it appears
         if check_captcha(driver):
             print("CAPTCHA handled, proceeding with search initialization.")
+            logging.info("CAPTCHA handled during search initialization.")
 
-        # Try to click the drop-down using JavaScript
+        # Scroll to the drop-down and try to click it
         drop_down = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.XPATH, "//*[@id='detay']"))
         )
         driver.execute_script("arguments[0].scrollIntoView(true);", drop_down)
 
+        # Attempt to click the drop-down
         try:
-            # Try regular click first
             drop_down.click()
         except ElementClickInterceptedException:
-            # If regular click fails, try JavaScript click
             driver.execute_script("arguments[0].click();", drop_down)
 
         time.sleep(1)
 
+        # Fill out the search fields
         search_field = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.ID, "esasNoYil"))
         )
@@ -326,15 +331,14 @@ def initialize_search(driver, line, start_number):
         )
         search_field2.clear()
         search_field2.send_keys(str(start_number))
+
+        # Attempt to click the search button
         search_button = WebDriverWait(driver, 20).until(
             EC.element_to_be_clickable((By.XPATH, '//*[@id="detaylıAramaG"]'))
         )
-
         try:
-            # Try regular click first
             search_button.click()
         except ElementClickInterceptedException:
-            # If regular click fails, try JavaScript click
             driver.execute_script("arguments[0].click();", search_button)
 
         time.sleep(2)
@@ -342,11 +346,9 @@ def initialize_search(driver, line, start_number):
         # Check for CAPTCHA again after search
         if check_captcha(driver):
             print("CAPTCHA handled after search, proceeding.")
+            logging.info("CAPTCHA handled after search.")
 
-        total_results = WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.ID, "toplamSonuc"))
-        )
-        # set no of records to 100
+        # Set the number of records to 100 per page
         record = WebDriverWait(driver, 20).until(
             EC.element_to_be_clickable(
                 (By.XPATH, "//*[@id='detayAramaSonuclar_length']/label/select/option[4]"))
@@ -355,34 +357,41 @@ def initialize_search(driver, line, start_number):
 
         time.sleep(2)
 
-        max_pages = int(total_results.text) // 100 + 1
-
+        # Fetch and process the table data
         html = driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
         table = soup.find('table', {'id': 'detayAramaSonuclar'})
         if table is None:
-            raise NoSuchElementException("Couldn't find table.")
+            raise NoSuchElementException("Couldn't find the results table.")
 
         table_body = table.find('tbody')
         rows = table_body.find_all('tr')
         data = [[ele.text.strip() for ele in row.find_all(
             'td') if ele.text.strip()] for row in rows]
 
+        total_results = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.ID, "toplamSonuc"))
+        )
+        max_pages = int(total_results.text) // 100 + 1
+
+        logging.info(f"{len(data)} Records selected on this page.")
         print(f"{len(data)} Records Selected.")
 
-        time.sleep(1)
         return max_pages, data
 
-    except Exception as e:
-        print(f"Error in initialize_search: {str(e)}")
-        check_captcha(driver)
-        wait_for_captcha_to_disappear(driver)
-        max_pages, data = initialize_search(
-            driver, line, start_number)
-        return max_pages, data
+    except Exception:
+        error_message = traceback.format_exc()  # Capture the full traceback
+        logging.error(f"Error in initialize_search: {error_message}")
+        print(f"Error in initialize_search: {error_message}")
 
+        if check_captcha(driver):
+            wait_for_captcha_to_disappear(driver)
+
+        # Handle the error and retry the operation
+        return initialize_search(driver, line, start_number)
 
 def process_line(line, pageurl, start, end, start_number):
+    logging.info(f"Process started for year {line}")
     print(f"Process started for year {line}")
     driver = setup_driver()
 
@@ -390,130 +399,113 @@ def process_line(line, pageurl, start, end, start_number):
         driver.get(pageurl)
         human_like_actions(driver)
 
-        hilal = start
-        global g_max_pages
-        global c_max_pages
-        global data
-        global begin
-
+        current_page = start
         begin = start_number
+        max_pages = None
+        data = None
 
-        g_max_pages, data = initialize_search(driver, line, begin)
-        c_max_pages = g_max_pages
-        # Iterrate through all the pages
-        with alive_bar(g_max_pages, title=f"Processing year: {line}") as bar:
-            while True:
+        with alive_bar(end - start + 1, title=f"Processing year {line}") as bar:
+            while current_page <= end:
                 try:
-                    # Iterrate through all the rows
-                    time.sleep(0.65)
-                    i = 0
-                 
-                    while i < 100:
+                    if not data or len(data) == 0:
+                        max_pages, data = initialize_search(
+                            driver, line, begin)
+                        if not max_pages or not data:
+                            raise Exception("Failed to initialize search")
+
+                    element_table = WebDriverWait(driver, 20).until(
+                        EC.presence_of_element_located(
+                            (By.ID, "detayAramaSonuclar"))
+                    )
+                    element_table_body = element_table.find_element(
+                        By.TAG_NAME, 'tbody')
+                    element_rows = element_table_body.find_elements(
+                        By.TAG_NAME, 'tr')
+
+                    for i, row in enumerate(element_rows):
                         try:
-                            # Select the row
-
-                            element_table = WebDriverWait(driver, 20).until(
-                                EC.presence_of_element_located(
-                                    (By.ID, "detayAramaSonuclar"))
-                            )
-                            element_table_body = element_table.find_element(
-                                By.TAG_NAME, 'tbody')
-                            element_rows = element_table_body.find_elements(
-                                By.TAG_NAME, 'tr')
-
-                            row = element_rows[i]
+                            first_record = element_rows[0].find_elements(
+                                By.TAG_NAME, 'td')[1].get_attribute("innerText")
+                            begin = int(first_record.split("/")[1])
 
                             driver.implicitly_wait(10)
                             ActionChains(driver).move_to_element(
                                 row).click(row).perform()
-                          
-                            first_record = element_rows[0].find_elements(By.TAG_NAME, 'td')[1].get_attribute("innerText")
 
-                            # driver.execute_script(
-                            #     "arguments[0].scrollIntoView(true);", first_record)
-                            
-                            # WebDriverWait(driver, 20).until(
-                            #     EC.visibility_of(first_record)
-                            # )
-
-
-                            # text = driver.execute_script(
-                            #     "return arguments[0].textContent;", first_record)
-                            
-                            # is_visible = driver.execute_script(
-                            #     "return (arguments[0].offsetParent !== null)", first_record)
-                            
-                            # print(is_visible)
-
-                            # print(text, "js text")
-                            
-                            # if text:
-                            #     first_record = text
-
-                            begin = int(first_record.split("/")[1])
-
-                            # Scrap the content for that row
                             time.sleep(0.5)
                             satirlar = extract_lines(driver)
 
-                            # if len(satirlar) == 0:
-                            #     raise Exception("No Content Found, Symptoms of Captcha")
-                            file_name = 'Esas:' + \
-                                data[i][1].replace(
-                                    '/', ' ') + " " + 'Karar:' + data[i][2].replace('/', ' ')
+                            file_name = f'Esas:{data[i][1].replace(
+                                "/", " ")} Karar:{data[i][2].replace("/", " ")}'
                             sanitized_file_name = sanitize_file_name(file_name)
                             base_path = os.getcwd()
                             output_dir = os.path.join(base_path, 'output')
                             os.makedirs(output_dir, exist_ok=True)
+
                             with open(os.path.join(output_dir, f'{sanitized_file_name}.txt'), 'w', encoding='utf-8') as esas:
                                 for satir in satirlar:
                                     esas.write(satir)
                                     esas.write('\n')
 
-                            print("Current Page:", (g_max_pages - c_max_pages) + 1 )
-                            # Upload to S3
+                            print(f"File Saved: {sanitized_file_name}.txt")
+                            logging.info(f"File Saved: {
+                                         sanitized_file_name}.txt")
+                            print(f"Current Page: {current_page}")
+
                             upload_to_s3(os.path.join(output_dir, f'{
                                          sanitized_file_name}.txt'), AWS_BUCKET_NAME, f'{sanitized_file_name}.txt')
-                            # Remove file from output directory after uploading to S3
                             os.remove(os.path.join(output_dir, f'{
                                       sanitized_file_name}.txt'))
 
-                            i += 1
-                        except Exception as e:
-                            print("Error Occurred: " + str(e))
-                            check_captcha(driver)
-                            wait_for_captcha_to_disappear(driver)
-                            c_max_pages, data = initialize_search(
+                        except Exception:
+                            error_message = traceback.format_exc()
+                            logging.error(f"Error processing row: {
+                                          error_message}")
+                            print(f"Error processing row: {error_message}")
+                            if check_captcha(driver):
+                                wait_for_captcha_to_disappear(driver)
+                            # Continue with the next row
+
+                    if current_page < end:
+                        try:
+                            next_button = WebDriverWait(driver, 40).until(
+                                EC.element_to_be_clickable(
+                                    (By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a'))
+                            )
+                            next_button.click()
+                            current_page += 1
+                            bar()
+                            print(f"Moved to Next Page: {current_page}")
+                            logging.info(f"Moved to Next Page: {current_page}")
+                            time.sleep(2)
+                            data = []  # Reset data for the new page
+                        except Exception:
+                            error_message = traceback.format_exc()
+                            logging.error(f"Error moving to next page: {
+                                          error_message}")
+                            print(f"Error moving to next page: {
+                                  error_message}")
+                            # Reinitialize search from the last known position
+                            max_pages, data = initialize_search(
                                 driver, line, begin)
-                            hilal = 1
-                            i = 0
+                    else:
+                        break
 
-                    element = WebDriverWait(driver, 40).until(
-                        EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
-                    element.click()
-                    hilal += 1
-                    bar()
-                    # Move to the next page
-                    print("Moved to Next Page: " + str(hilal))
+                except Exception:
+                    error_message = traceback.format_exc()
+                    logging.error(f"Error processing page: {error_message}")
+                    print(f"Error processing page: {error_message}")
+                    if check_captcha(driver):
+                        wait_for_captcha_to_disappear(driver)
+                    # Reinitialize search from the last known position
+                    max_pages, data = initialize_search(driver, line, begin)
 
-                except Exception as e:
-                    print("Error Occurred: " + str(e))
-                    check_captcha(driver)
-                    wait_for_captcha_to_disappear(driver)
-                    c_max_pages, data = initialize_search(
-                        driver, line, begin)
-                    hilal = 1
-
-    except Exception as e:
-        print("Error Occurred: " + str(e))
-        check_captcha(driver)
-        wait_for_captcha_to_disappear(driver)
-        c_max_pages, data = initialize_search(driver, line, begin)
-        hilal = 1
-
+    except Exception:
+        error_message = traceback.format_exc()
+        logging.error(f"Fatal error: {error_message}")
+        print(f"Fatal error: {error_message}")
     finally:
         driver.quit()
-
 
 def upload_to_s3(file_path, bucket, object_name):
 
