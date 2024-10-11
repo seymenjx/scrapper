@@ -1,3 +1,17 @@
+import redis
+import json
+import os
+
+# Add these imports at the top of the file
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Initialize Redis client
+redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+redis_client = redis.from_url(redis_url)
+
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -124,8 +138,7 @@ def apply_captcha_solution(driver, captcha_solution):
             "arguments[0].style.display = 'block';", recaptcha_response_element)
 
         # Set the CAPTCHA solution
-        driver.execute_script(f'arguments[0].value = "{
-                              captcha_solution}";', recaptcha_response_element)
+        driver.execute_script(f'arguments[0].value = "{captcha_solution}";', recaptcha_response_element)
 
         # Dispatch the input event
         driver.execute_script(
@@ -287,10 +300,9 @@ def extract_lines(driver):
     return satirlar
 
 
-def initialize_search(driver, line, start_number):
+def initialize_search(driver, line, start_number, finish_number):
     try:
-        logging.info(f"Initializing search for line: {
-                     line}, start number: {start_number}")
+        logging.info(f"Initializing search for line: {line}, start number: {start_number}")
 
         # Handle CAPTCHA if it appears
         if check_captcha(driver):
@@ -323,14 +335,14 @@ def initialize_search(driver, line, start_number):
                 (By.XPATH, '//*[@id="esasNoSira1"]'))
         )
         search_field1.clear()
-        search_field1.send_keys("1")
+        search_field1.send_keys(str(start_number)) #TODO: Check if this is correct
 
         search_field2 = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located(
                 (By.XPATH, '//*[@id="esasNoSira2"]'))
         )
         search_field2.clear()
-        search_field2.send_keys(str(start_number))
+        search_field2.send_keys(str(finish_number)) #TODO: Check if this is correct
 
         # Attempt to click the search button
         search_button = WebDriverWait(driver, 20).until(
@@ -392,83 +404,135 @@ def initialize_search(driver, line, start_number):
         # Handle the error and retry the operation
         return initialize_search(driver, line, start_number)
 
+def get_progress(year):
+    progress = redis_client.hget('scraping_progress', str(year))
+    if progress:
+        return json.loads(progress)
+    return None
+
+def save_progress(year, page, begin, start, end, start_number, status='in_progress'):
+    progress = json.dumps({
+        'page': page,
+        'begin': begin,
+        'start': start,
+        'end': end,
+        'start_number': start_number,
+        'status': status
+    })
+    redis_client.hset('scraping_progress', str(year), progress)
+
+def get_next_year():
+    all_progress = redis_client.hgetall('scraping_progress')
+    for year, progress in all_progress.items():
+        progress_data = json.loads(progress)
+        if progress_data['status'] in ['pending', 'in_progress']:
+            return int(year)
+    return None
+
 def process_line(line, pageurl, start, end, start_number):
     logging.info(f"Process started for year {line}")
     print(f"Process started for year {line}")
     driver = setup_driver()
+    s3_client = boto3.client('s3',
+                             aws_access_key_id=AWS_ACCESS_KEY_ID,
+                             aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
 
     try:
         driver.get(pageurl)
         human_like_actions(driver)
 
-        hilal = start
-        global g_max_pages
-        global c_max_pages
-        global data
-        global begin
-
-        begin = start_number
-
-        g_max_pages, data = initialize_search(driver, line, begin)
+        # Retrieve progress from Redis
+        progress = get_progress(line)
+        if progress:
+            hilal = progress['page']
+            begin = progress['begin']
+            start = progress['start']
+            end = progress['end']
+            start_number = progress['start_number']
+        else:
+            hilal = 1
+            begin = start_number
+        #While initializing search, we need to start from the last processed record but I couldn't be sure if this is correct
+        global g_max_pages, c_max_pages, data #TODO: Check if this is correct   
+        g_max_pages, data = initialize_search(driver, line=line, start_number=end, finish_number=end) #TODO: Check if this is correct
         c_max_pages = g_max_pages
-        # Iterrate through all the pages
+        
         with alive_bar(g_max_pages, title=f"Processing year: {line}") as bar:
-            while True:
+            while begin <= end:
                 try:
                     if not data or len(data) == 0:
-                        max_pages, data = initialize_search(
-                            driver, line, begin)
+                        max_pages, data = initialize_search(driver, line, begin)
                         if not max_pages or not data:
                             raise Exception("Failed to initialize search")
 
                     element_table = WebDriverWait(driver, 20).until(
-                        EC.presence_of_element_located(
-                            (By.ID, "detayAramaSonuclar"))
+                        EC.presence_of_element_located((By.ID, "detayAramaSonuclar"))
                     )
-                    element_table_body = element_table.find_element(
-                        By.TAG_NAME, 'tbody')
-                    element_rows = element_table_body.find_elements(
-                        By.TAG_NAME, 'tr')
+                    element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
+                    element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
 
                     for i, row in enumerate(element_rows):
                         try:
-                            first_record = element_rows[0].find_elements(
-                                By.TAG_NAME, 'td')[1].get_attribute("innerText")
+                            first_record = element_rows[0].find_elements(By.TAG_NAME, 'td')[1].get_attribute("innerText")
                             begin = int(first_record.split("/")[1])
 
+                            expected_file_name = f'Esas:{data[i][1].replace("/", " ")} Karar:{data[i][2].replace("/", " ")}'
+                            sanitized_expected_file_name = sanitize_file_name(expected_file_name)
+                            s3_key = f'{sanitized_expected_file_name}.txt'
+
                             driver.implicitly_wait(10)
-                            ActionChains(driver).move_to_element(
-                                row).click(row).perform()
+                            ActionChains(driver).move_to_element(row).click(row).perform()
 
                             time.sleep(0.5)
                             satirlar = extract_lines(driver)
 
-                            file_name = f'Esas:{data[i][1].replace(
-                                "/", " ")} Karar:{data[i][2].replace("/", " ")}'
-                            sanitized_file_name = sanitize_file_name(file_name)
-                            base_path = os.getcwd()
-                            output_dir = os.path.join(base_path, 'output')
-                            os.makedirs(output_dir, exist_ok=True)
+                            if verify_content_matches_filename(satirlar, expected_file_name):
+                                base_path = os.getcwd()
+                                output_dir = os.path.join(base_path, 'output')
+                                os.makedirs(output_dir, exist_ok=True)
 
-                            with open(os.path.join(output_dir, f'{sanitized_file_name}.txt'), 'w', encoding='utf-8') as esas:
-                                for satir in satirlar:
-                                    esas.write(satir)
-                                    esas.write('\n')
+                                file_path = os.path.join(output_dir, s3_key)
+                                with open(file_path, 'w', encoding='utf-8') as esas:
+                                    for satir in satirlar:
+                                        esas.write(satir)
+                                        esas.write('\n')
 
-                            print("Current Page:", (g_max_pages - c_max_pages) + 1 )
-                            # Upload to S3
-                            upload_to_s3(os.path.join(output_dir, f'{
-                                         sanitized_file_name}.txt'), AWS_BUCKET_NAME, f'{sanitized_file_name}.txt')
-                            os.remove(os.path.join(output_dir, f'{
-                                      sanitized_file_name}.txt'))
+                                print("Current Page:", (g_max_pages - c_max_pages) + 1)
+                                
+                                # Check if file exists in S3 and compare content
+                                try:
+                                    existing_file = s3_client.get_object(Bucket=AWS_BUCKET_NAME, Key=s3_key)
+                                    existing_content = existing_file['Body'].read().decode('utf-8')
+                                    
+                                    if existing_content != '\n'.join(satirlar):
+                                        print(f"Updating file in S3: {s3_key}")
+                                        upload_to_s3(file_path, AWS_BUCKET_NAME, s3_key)
+                                    else:
+                                        print(f"File already up-to-date in S3: {s3_key}")
+                                except s3_client.exceptions.NoSuchKey:
+                                    print(f"Uploading new file to S3: {s3_key}")
+                                    upload_to_s3(file_path, AWS_BUCKET_NAME, s3_key)
+                                
+                                os.remove(file_path)
+                            else:
+                                print(f"Content mismatch for file: {s3_key}. Skipping upload and removing if exists.")
+                                try:
+                                    s3_client.delete_object(Bucket=AWS_BUCKET_NAME, Key=s3_key)
+                                    print(f"Deleted incorrect file from S3: {s3_key}")
+                                except s3_client.exceptions.NoSuchKey:
+                                    print(f"No incorrect file to delete in S3: {s3_key}")
 
                             i += 1
+                            
+                            # Save progress to Redis after each row
+                            last_processed_esas = data[i][1].replace("/", " ")[5:] #TODO: Check if this is correct
+                            save_progress(line, hilal, begin, start, end=last_processed_esas, start_number=start_number)     
+                            
                         except Exception as e:
                             print("Error Occurred: " + str(e))
                             check_captcha(driver)
                             wait_for_captcha_to_disappear(driver)
-                            c_max_pages, data = initialize_search(
-                                driver, line, begin)
+                            c_max_pages, data = initialize_search(driver, line, begin)
                             hilal = 1
                             i = 0
 
@@ -477,23 +541,14 @@ def process_line(line, pageurl, start, end, start_number):
                     element.click()
                     hilal += 1
                     bar()
-                    # Move to the next page
                     print("Moved to Next Page: " + str(hilal))
 
                 except Exception as e:
                     print("Error Occurred: " + str(e))
                     check_captcha(driver)
                     wait_for_captcha_to_disappear(driver)
-                    c_max_pages, data = initialize_search(
-                        driver, line, begin)
+                    c_max_pages, data = initialize_search(driver, line, begin)
                     hilal = 1
-
-    except Exception as e:
-        print("Error Occurred: " + str(e))
-        check_captcha(driver)
-        wait_for_captcha_to_disappear(driver)
-        c_max_pages, data = initialize_search(driver, line, begin)
-        hilal = 1
 
     except Exception:
         error_message = traceback.format_exc()
@@ -501,6 +556,20 @@ def process_line(line, pageurl, start, end, start_number):
         print(f"Fatal error: {error_message}")
     finally:
         driver.quit()
+        if begin > end:
+            # Mark the year as completed when done
+            save_progress(line, 1, 1, start, end, start_number, status='completed')
+        else:
+            # Save the current progress
+            save_progress(line, hilal, begin, start, end, start_number)
+
+def verify_content_matches_filename(content, expected_filename):
+    # Implement logic to verify if the content matches the expected filename
+    # This could involve checking for specific patterns or keywords in the content
+    # Return True if the content matches, False otherwise
+    # Example implementation:
+    expected_case_number = expected_filename.split()[1]
+    return any(expected_case_number in line for line in content)
 
 def upload_to_s3(file_path, bucket, object_name):
 
