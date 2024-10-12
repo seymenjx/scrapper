@@ -12,8 +12,17 @@ load_dotenv()
 
 # Initialize Redis client
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+url = urlparse(redis_url)
+
 # Create the Redis client
-redis_client = redis.from_url(redis_url)
+redis_client = redis.Redis(
+    host=url.hostname,
+    port=url.port,
+    username=url.username,
+    password=url.password,
+    ssl=True,  # Enable SSL
+    ssl_cert_reqs='none'  # Disable SSL certificate verification
+)
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -107,8 +116,7 @@ def get_captcha_solution(request_id):
     attempt = 0
     while attempt < max_attempts:
         try:
-            url = f"http://2captcha.com/res.php?key={
-                API_KEY}&action=get&id={request_id}&json=1"
+            url = f"http://2captcha.com/res.php?key={API_KEY}&action=get&id={request_id}&json=1"    
             response = requests.get(url, timeout=30)
             response.raise_for_status()
             result = response.json()
@@ -252,8 +260,7 @@ def check_captcha(driver):
                     print("Captcha Solved!")
                     return True
                 else:
-                    print(f"CAPTCHA solving attempt {
-                          attempt + 1} failed. Retrying...")
+                    print(f"CAPTCHA solving attempt {attempt + 1} failed. Retrying...")
             else:
                 print("No CAPTCHA detected.")
                 return False
@@ -406,7 +413,7 @@ def initialize_search(driver, line, start_number, finish_number):
             wait_for_captcha_to_disappear(driver)
 
         # Handle the error and retry the operation
-        return initialize_search(driver, line, start_number)
+        return initialize_search(driver, line, start_number, finish_number)
 
 def get_progress(year):
     progress = redis_client.hget('scraping_progress', str(year))
