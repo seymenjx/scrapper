@@ -438,34 +438,29 @@ def get_next_year():
         with redis_client.pipeline() as pipe:
             while True:
                 try:
-                    # Watch the scraping_progress key for changes
                     pipe.watch('scraping_progress')
-                    
-                    # Get all hash fields
                     all_years = pipe.hgetall('scraping_progress')
                     
-                    # Find the next unprocessed year
                     next_year = None
                     for year, data_str in all_years.items():
                         data = json.loads(data_str)
+                        print(f"Checking year {year}: status = {data['status']}")  # Debug print
                         if data['status'] == 'pending':
                             next_year = int(year)
                             break
                     
                     if next_year is None:
+                        print("No pending years found")  # Debug print
                         return None
                     
-                    # Mark the year as in progress
                     data['status'] = 'in_progress'
-                    
-                    # Start a transaction
                     pipe.multi()
                     pipe.hset('scraping_progress', str(next_year), json.dumps(data))
                     pipe.execute()
                     
+                    print(f"Selected year {next_year} for processing")  # Debug print
                     return next_year
                 except redis.exceptions.WatchError:
-                    # Another client modified the key, retry
                     continue
     except Exception as e:
         print(f"Error in get_next_year: {e}")
@@ -584,10 +579,14 @@ def process_line(line, pageurl, start, end, start_number):
                     c_max_pages, data = initialize_search(driver, line, begin, end)
                     hilal = 1
 
-    except Exception:
-        error_message = traceback.format_exc()
-        logging.error(f"Fatal error: {error_message}")
-        print(f"Fatal error: {error_message}")
+    except Exception as e:
+        print(f"Error processing year {line}: {str(e)}")
+        # Set the year's status back to pending
+        progress = get_progress(line)
+        if progress:
+            progress['status'] = 'pending'
+            save_progress(line, **progress)
+        raise  # Re-raise the exception to be caught by the main loop
     finally:
         driver.quit()
         if begin > end:

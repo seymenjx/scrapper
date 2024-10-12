@@ -58,9 +58,18 @@ def initialize_redis():
     all_years = redis_client.hgetall('scraping_progress')
     print("Current contents of scraping_progress:", all_years)
 
+def reset_progress():
+    all_years = redis_client.hgetall('scraping_progress')
+    for year, data_str in all_years.items():
+        data = json.loads(data_str)
+        data['status'] = 'pending'
+        redis_client.hset('scraping_progress', year, json.dumps(data))
+    print("All years reset to pending status")
+
 def main():
     try:
-        initialize_redis()  # Ensure Redis is initialized
+        initialize_redis()
+        reset_progress()  # Ensure Redis is initialized
         while True:
             year = get_next_year()
             if year is None:
