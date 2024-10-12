@@ -2,6 +2,7 @@ from functions import redis_client, save_progress, get_next_year, get_progress
 import json
 import os
 from dotenv import load_dotenv
+import logging
 
 
 load_dotenv()
@@ -35,9 +36,9 @@ all_years = [
 ]
 
 def initialize_redis():
-    # Check if scraping_progress exists
+    print("Starting Redis initialization...")
     if not redis_client.exists('scraping_progress'):
-        for year_data in all_years:
+        for year_data in all_years:  # Ensure all_years is defined and contains the years you want to process
             year, start, end, start_number = year_data
             progress = json.dumps({
                 'page': 1,
@@ -48,28 +49,39 @@ def initialize_redis():
                 'status': 'pending'
             })
             redis_client.hset('scraping_progress', str(year), progress)
+            print(f"Added year {year} to Redis")
+        print("Redis initialization complete")
+    else:
+        print("Redis already initialized, skipping initialization")
+    
+    # Print the contents of scraping_progress after initialization
+    all_years = redis_client.hgetall('scraping_progress')
+    print("Current contents of scraping_progress:", all_years)
 
 def main():
-    initialize_redis()  # Initialize Redis at the start
-    print("Main worker initialized. Sub-workers can now start processing.")
-    
-    while True:
-        year = get_next_year()
-        if year is None:
-            print("All years processed")
-            break
+    try:
+        initialize_redis()  # Ensure Redis is initialized
+        while True:
+            year = get_next_year()
+            if year is None:
+                print("All years processed")
+                break
 
-        print(f"Processing year: {year}")
-        progress = get_progress(year)
-        if progress:
-            try:
-                # Here you would call the sub-worker processing function
-                # For example: process_line(year, pageurl, progress['start'], progress['end'], progress['start_number'])
-                print(f"Completed processing for year {year}")
-            except Exception as e:
-                print(f"Error processing year {year}: {str(e)}")
-        else:
-            print(f"No progress data found for year {year}")
+            print(f"Processing year: {year}")
+            progress = get_progress(year)
+            if progress:
+                try:
+                    # Here you would call the sub-worker processing function
+                    # For example: process_line(year, pageurl, progress['start'], progress['end'], progress['start_number'])
+                    print(f"Completed processing for year {year}")
+                except Exception as e:
+                    logging.error(f"Error processing year {year}: {str(e)}")
+                    print(f"Error processing year {year}: {str(e)}")
+            else:
+                print(f"No progress data found for year {year}")
+    except Exception as e:
+        logging.error(f"Fatal error in main: {str(e)}")
+        print(f"Fatal error in main: {str(e)}")
 
 if __name__ == "__main__":
     main()
