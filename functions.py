@@ -20,8 +20,8 @@ redis_client = redis.Redis(
     port=url.port,
     username=url.username,
     password=url.password,
-    ssl=True,
-    ssl_cert_reqs=None  # Disable SSL certificate verification
+    ssl=True,  # Enable SSL
+    ssl_cert_reqs='none'  # Disable SSL certificate verification
 )
 
 from selenium import webdriver
