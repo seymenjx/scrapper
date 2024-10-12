@@ -12,17 +12,8 @@ load_dotenv()
 
 # Initialize Redis client
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-url = urlparse(redis_url)
-
 # Create the Redis client
-redis_client = redis.Redis(
-    host=url.hostname,
-    port=url.port,
-    username=url.username,
-    password=url.password,
-    ssl=True,  # Enable SSL
-    ssl_cert_reqs='none'  # Disable SSL certificate verification
-)
+redis_client = redis.from_url(redis_url)
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
