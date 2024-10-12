@@ -1,6 +1,8 @@
 import redis
 import json
 import os
+import ssl
+from urllib.parse import urlparse
 
 # Add these imports at the top of the file
 from dotenv import load_dotenv
@@ -10,7 +12,25 @@ load_dotenv()
 
 # Initialize Redis client
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-redis_client = redis.from_url(redis_url)
+url = urlparse(redis_url)
+
+# Create a custom SSL context
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
+redis_client = redis.Redis(
+    host=url.hostname,
+    port=url.port,
+    username=url.username,
+    password=url.password,
+    ssl=True,
+    ssl_cert_reqs='none',
+    ssl_ca_certs=None,
+    connection_pool=redis.ConnectionPool(
+        ssl_context=ssl_context
+    )
+)
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
