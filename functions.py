@@ -29,6 +29,7 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 import re
 import os
 import boto3
+from botocore.exceptions import ClientError
 from dotenv import dotenv_values
 from alive_progress import alive_bar
 from selenium.webdriver.common.action_chains import ActionChains
@@ -443,22 +444,15 @@ def process_line(line, pageurl, start, end, start_number):
 
         # Retrieve progress from Redis
         progress = get_progress(line)
-        if progress:
-            hilal = progress['page']
-            begin = progress['begin']
-            start = progress['start']
-            end = progress['end']
-            start_number = progress['start_number']
-        else:
-            hilal = 1
-            begin = start_number
-        #While initializing search, we need to start from the last processed record but I couldn't be sure if this is correct
-        global g_max_pages, c_max_pages, data #TODO: Check if this is correct   
-        g_max_pages, data = initialize_search(driver, line=line, start_number=end, finish_number=end) #TODO: Check if this is correct
+        hilal = progress['page']
+        begin = progress['begin']
+
+        global g_max_pages, c_max_pages, data
+        g_max_pages, data = initialize_search(driver, line, begin)
         c_max_pages = g_max_pages
         
         with alive_bar(g_max_pages, title=f"Processing year: {line}") as bar:
-            while begin <= end:
+            while True:
                 try:
                     if not data or len(data) == 0:
                         max_pages, data = initialize_search(driver, line, begin)
@@ -486,7 +480,18 @@ def process_line(line, pageurl, start, end, start_number):
                             time.sleep(0.5)
                             satirlar = extract_lines(driver)
 
-                            if verify_content_matches_filename(satirlar, expected_file_name):
+                            if verify_content_matches_filename(satirlar, sanitized_expected_file_name, s3_client, AWS_BUCKET_NAME):
+                                print(f"Content matches for file: {s3_key}. No action needed.")
+                            else:
+                                print(f"Content mismatch for file: {s3_key}. Deleting old file and uploading new one.")
+                                try:
+                                    # Delete the existing object from S3
+                                    s3_client.delete_object(Bucket=AWS_BUCKET_NAME, Key=s3_key)
+                                    print(f"Deleted old file from S3: {s3_key}")
+                                except s3_client.exceptions.NoSuchKey:
+                                    print(f"No existing file to delete in S3: {s3_key}")
+                                
+                                # Upload the new content
                                 base_path = os.getcwd()
                                 output_dir = os.path.join(base_path, 'output')
                                 os.makedirs(output_dir, exist_ok=True)
@@ -497,36 +502,14 @@ def process_line(line, pageurl, start, end, start_number):
                                         esas.write(satir)
                                         esas.write('\n')
 
-                                print("Current Page:", (g_max_pages - c_max_pages) + 1)
-                                
-                                # Check if file exists in S3 and compare content
-                                try:
-                                    existing_file = s3_client.get_object(Bucket=AWS_BUCKET_NAME, Key=s3_key)
-                                    existing_content = existing_file['Body'].read().decode('utf-8')
-                                    
-                                    if existing_content != '\n'.join(satirlar):
-                                        print(f"Updating file in S3: {s3_key}")
-                                        upload_to_s3(file_path, AWS_BUCKET_NAME, s3_key)
-                                    else:
-                                        print(f"File already up-to-date in S3: {s3_key}")
-                                except s3_client.exceptions.NoSuchKey:
-                                    print(f"Uploading new file to S3: {s3_key}")
-                                    upload_to_s3(file_path, AWS_BUCKET_NAME, s3_key)
-                                
+                                print(f"Uploading new file to S3: {s3_key}")
+                                upload_to_s3(file_path, AWS_BUCKET_NAME, s3_key)
                                 os.remove(file_path)
-                            else:
-                                print(f"Content mismatch for file: {s3_key}. Skipping upload and removing if exists.")
-                                try:
-                                    s3_client.delete_object(Bucket=AWS_BUCKET_NAME, Key=s3_key)
-                                    print(f"Deleted incorrect file from S3: {s3_key}")
-                                except s3_client.exceptions.NoSuchKey:
-                                    print(f"No incorrect file to delete in S3: {s3_key}")
 
                             i += 1
                             
-                            # Save progress to Redis after each row
-                            last_processed_esas = data[i][1].replace("/", " ")[5:] #TODO: Check if this is correct
-                            save_progress(line, hilal, begin, start, end=last_processed_esas, start_number=start_number)     
+                            # Save progress to Redis
+                            save_progress(line, hilal, begin)
                             
                         except Exception as e:
                             print("Error Occurred: " + str(e))
@@ -563,13 +546,35 @@ def process_line(line, pageurl, start, end, start_number):
             # Save the current progress
             save_progress(line, hilal, begin, start, end, start_number)
 
-def verify_content_matches_filename(content, expected_filename):
-    # Implement logic to verify if the content matches the expected filename
-    # This could involve checking for specific patterns or keywords in the content
-    # Return True if the content matches, False otherwise
-    # Example implementation:
-    expected_case_number = expected_filename.split()[1]
-    return any(expected_case_number in line for line in content)
+
+
+def verify_content_matches_filename(new_content, expected_filename, s3_client, bucket_name):
+    s3_key = f'{expected_filename}.txt'
+    
+    try:
+        # Attempt to get the object from S3
+        existing_file = s3_client.get_object(Bucket=bucket_name, Key=s3_key)
+        existing_content = existing_file['Body'].read().decode('utf-8')
+        
+        # Normalize the new content to a string if it's a list
+        new_content_str = '\n'.join(new_content) if isinstance(new_content, list) else new_content
+        
+        # Compare the existing content with the new content
+        if existing_content.strip() == new_content_str.strip():
+            print(f"Content matches for file: {s3_key}")
+            return True
+        else:
+            print(f"Content mismatch for file: {s3_key}")
+            return False
+    
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'NoSuchKey':
+            # If the file doesn't exist in S3, we consider it a mismatch
+            print(f"File does not exist in S3: {s3_key}")
+            return False
+        else:
+            # For any other error, we raise the exception
+            raise
 
 def upload_to_s3(file_path, bucket, object_name):
 
