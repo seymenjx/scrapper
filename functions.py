@@ -342,18 +342,16 @@ def initialize_search(driver, line, start_number, finish_number):
         search_field.send_keys(str(line))
 
         search_field1 = WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located(
-                (By.XPATH, '//*[@id="esasNoSira1"]'))
+            EC.presence_of_element_located((By.XPATH, '//*[@id="esasNoSira1"]'))
         )
         search_field1.clear()
-        search_field1.send_keys(str(start_number)) #TODO: Check if this is correct
+        search_field1.send_keys(str(start_number))
 
         search_field2 = WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located(
-                (By.XPATH, '//*[@id="esasNoSira2"]'))
+            EC.presence_of_element_located((By.XPATH, '//*[@id="esasNoSira2"]'))
         )
         search_field2.clear()
-        search_field2.send_keys(str(finish_number)) #TODO: Check if this is correct 
+        search_field2.send_keys(str(finish_number))
 
         # Attempt to click the search button
         search_button = WebDriverWait(driver, 20).until(
@@ -370,17 +368,20 @@ def initialize_search(driver, line, start_number, finish_number):
         if check_captcha(driver):
             print("CAPTCHA handled after search, proceeding.")
 
-        total_results = WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.ID, "toplamSonuc"))
+        # Wait for the results to load
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.ID, "detayAramaSonuclar"))
         )
-        # set no of records to 100
-        record = WebDriverWait(driver, 20).until(
-            EC.element_to_be_clickable(
-                (By.XPATH, "//*[@id='detayAramaSonuclar_length']/label/select/option[4]"))
-        )
-        record.click()
 
-        time.sleep(2)
+        # Set number of records to 100
+        try:
+            record = WebDriverWait(driver, 20).until(
+                EC.element_to_be_clickable((By.XPATH, "//*[@id='detayAramaSonuclar_length']/label/select/option[4]"))
+            )
+            record.click()
+            time.sleep(2)
+        except Exception as e:
+            logging.warning(f"Failed to set number of records to 100: {str(e)}")
 
         # Fetch and process the table data
         html = driver.page_source
@@ -391,29 +392,29 @@ def initialize_search(driver, line, start_number, finish_number):
 
         table_body = table.find('tbody')
         rows = table_body.find_all('tr')
-        data = [[ele.text.strip() for ele in row.find_all(
-            'td') if ele.text.strip()] for row in rows]
+        data = [[ele.text.strip() for ele in row.find_all('td') if ele.text.strip()] for row in rows]
 
-        total_results = WebDriverWait(driver, 20).until(
+        total_results_element = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.ID, "toplamSonuc"))
         )
-        max_pages = int(total_results.text) // 100 + 1
+        total_results = int(total_results_element.text)
+        max_pages = (total_results - 1) // 100 + 1
 
-        logging.info(f"{len(data)} Records selected on this page.")
-        print(f"{len(data)} Records Selected.")
+        logging.info(f"{len(data)} Records selected on this page. Total results: {total_results}")
+        print(f"{len(data)} Records Selected. Total results: {total_results}")
 
         return max_pages, data
 
-    except Exception:
-        error_message = traceback.format_exc()  # Capture the full traceback
+    except Exception as e:
+        error_message = traceback.format_exc()
         logging.error(f"Error in initialize_search: {error_message}")
-        print(f"Error in initialize_search: {error_message}")
+        print(f"Error in initialize_search: {str(e)}")
 
         if check_captcha(driver):
             wait_for_captcha_to_disappear(driver)
 
-        # Handle the error and retry the operation
-        return initialize_search(driver, line, start_number, finish_number)
+        # Instead of recursively calling initialize_search, return None values
+        return None, None
 
 def get_progress(year):
     progress = redis_client.hget('scraping_progress', str(year))
@@ -489,6 +490,8 @@ def process_line(line, pageurl, start, end, start_number):
 
         global g_max_pages, c_max_pages, data
         g_max_pages, data = initialize_search(driver, line, begin, end)
+        if g_max_pages is None or data is None:
+            raise Exception("Failed to initialize search")
         c_max_pages = g_max_pages
         
         with alive_bar(g_max_pages, title=f"Processing year: {line}") as bar:
@@ -496,7 +499,7 @@ def process_line(line, pageurl, start, end, start_number):
                 try:
                     if not data or len(data) == 0:
                         max_pages, data = initialize_search(driver, line, begin, end)
-                        if not max_pages or not data:
+                        if max_pages is None or data is None:
                             raise Exception("Failed to initialize search")
 
                     element_table = WebDriverWait(driver, 20).until(
