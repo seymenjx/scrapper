@@ -343,7 +343,7 @@ def initialize_search(driver, line, start_number, finish_number):
                 (By.XPATH, '//*[@id="esasNoSira2"]'))
         )
         search_field2.clear()
-        search_field2.send_keys(str(finish_number)) #TODO: Check if this is correct
+        search_field2.send_keys(str(finish_number)) #TODO: Check if this is correct 
 
         # Attempt to click the search button
         search_button = WebDriverWait(driver, 20).until(
