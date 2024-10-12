@@ -36,7 +36,7 @@ from fake_useragent import UserAgent
 import time
 import random
 import requests
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException, StaleElementReferenceException
 from bs4 import BeautifulSoup, NavigableString, Tag
 import re
 import os
@@ -433,12 +433,42 @@ def save_progress(year, page, begin, start, end, start_number, status='in_progre
     redis_client.hset('scraping_progress', str(year), progress)
 
 def get_next_year():
-    all_progress = redis_client.hgetall('scraping_progress')
-    for year, progress in all_progress.items():
-        progress_data = json.loads(progress)
-        if progress_data['status'] in ['pending', 'in_progress']:
-            return int(year)
-    return None
+    try:
+        with redis_client.pipeline() as pipe:
+            while True:
+                try:
+                    # Watch the scraping_progress key for changes
+                    pipe.watch('scraping_progress')
+                    
+                    # Get the current progress
+                    progress = pipe.get('scraping_progress')
+                    progress = json.loads(progress) if progress else {}
+                    
+                    # Find the next unprocessed year
+                    next_year = None
+                    for year, data in progress.items():
+                        if data['status'] == 'pending':
+                            next_year = int(year)
+                            break
+                    
+                    if next_year is None:
+                        return None
+                    
+                    # Mark the year as in progress
+                    progress[str(next_year)]['status'] = 'in_progress'
+                    
+                    # Start a transaction
+                    pipe.multi()
+                    pipe.set('scraping_progress', json.dumps(progress))
+                    pipe.execute()
+                    
+                    return next_year
+                except redis.exceptions.WatchError:
+                    # Another client modified the key, retry
+                    continue
+    except Exception as e:
+        print(f"Error in get_next_year: {e}")
+        return None
 
 def process_line(line, pageurl, start, end, start_number):
     logging.info(f"Process started for year {line}")
@@ -476,30 +506,32 @@ def process_line(line, pageurl, start, end, start_number):
                     element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
 
                     for i, row in enumerate(element_rows):
-                        try:
-                            first_record = element_rows[0].find_elements(By.TAG_NAME, 'td')[1].get_attribute("innerText")
-                            begin = int(first_record.split("/")[1])
+                        max_retries = 3
+                        for retry in range(max_retries):
+                            try:
+                                first_record = element_rows[0].find_elements(By.TAG_NAME, 'td')[1].get_attribute("innerText")
+                                begin = int(first_record.split("/")[1])
 
-                            expected_file_name = f'Esas:{data[i][1].replace("/", " ")} Karar:{data[i][2].replace("/", " ")}'
-                            sanitized_expected_file_name = sanitize_file_name(expected_file_name)
-                            s3_key = f'{sanitized_expected_file_name}.txt'
+                                expected_file_name = f'Esas:{data[i][1].replace("/", " ")} Karar:{data[i][2].replace("/", " ")}'
+                                sanitized_expected_file_name = sanitize_file_name(expected_file_name)
+                                s3_key = f'{sanitized_expected_file_name}.txt'
 
-                            driver.implicitly_wait(10)
-                            ActionChains(driver).move_to_element(row).click(row).perform()
+                                driver.implicitly_wait(10)
+                                ActionChains(driver).move_to_element(row).click(row).perform()
 
-                            time.sleep(0.5)
-                            satirlar = extract_lines(driver)
+                                time.sleep(0.5)
+                                satirlar = extract_lines(driver)
 
-                            if verify_content_matches_filename(satirlar, sanitized_expected_file_name, s3_client, AWS_BUCKET_NAME):
-                                print(f"Content matches for file: {s3_key}. No action needed.")
-                            else:
-                                print(f"Content mismatch for file: {s3_key}. Deleting old file and uploading new one.")
-                                try:
-                                    # Delete the existing object from S3
-                                    s3_client.delete_object(Bucket=AWS_BUCKET_NAME, Key=s3_key)
-                                    print(f"Deleted old file from S3: {s3_key}")
-                                except s3_client.exceptions.NoSuchKey:
-                                    print(f"No existing file to delete in S3: {s3_key}")
+                                if verify_content_matches_filename(satirlar, sanitized_expected_file_name, s3_client, AWS_BUCKET_NAME):
+                                    print(f"Content matches for file: {s3_key}. No action needed.")
+                                else:
+                                    print(f"Content mismatch for file: {s3_key}. Deleting old file and uploading new one.")
+                                    try:
+                                        # Delete the existing object from S3
+                                        s3_client.delete_object(Bucket=AWS_BUCKET_NAME, Key=s3_key)
+                                        print(f"Deleted old file from S3: {s3_key}")
+                                    except s3_client.exceptions.NoSuchKey:
+                                        print(f"No existing file to delete in S3: {s3_key}")
                                 
                                 # Upload the new content
                                 base_path = os.getcwd()
@@ -516,18 +548,24 @@ def process_line(line, pageurl, start, end, start_number):
                                 upload_to_s3(file_path, AWS_BUCKET_NAME, s3_key)
                                 os.remove(file_path)
 
-                            i += 1
-                            
-                            # Save progress to Redis
-                            save_progress(line, hilal, begin)
-                            
-                        except Exception as e:
-                            print("Error Occurred: " + str(e))
-                            check_captcha(driver)
-                            wait_for_captcha_to_disappear(driver)
-                            c_max_pages, data = initialize_search(driver, line, begin, end)
-                            hilal = 1
-                            i = 0
+                                i += 1
+                                
+                                # Save progress to Redis
+                                save_progress(line, hilal, begin)
+                                
+                                break  # If successful, break the retry loop
+                            except StaleElementReferenceException:
+                                if retry < max_retries - 1:
+                                    print(f"Stale element, retrying ({retry + 1}/{max_retries})...")
+                                    # Refresh the elements
+                                    element_table = WebDriverWait(driver, 20).until(
+                                        EC.presence_of_element_located((By.ID, "detayAramaSonuclar"))
+                                    )
+                                    element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
+                                    element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
+                                    row = element_rows[i]  # Get the updated row
+                                else:
+                                    raise  # If max retries reached, raise the exception
 
                     element = WebDriverWait(driver, 40).until(
                         EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
