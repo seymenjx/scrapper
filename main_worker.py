@@ -35,17 +35,19 @@ all_years = [
 ]
 
 def initialize_redis():
-    # Check if scraping_progress exists and is of the correct type
-    if redis_client.exists('scraping_progress'):
-        if redis_client.type('scraping_progress').decode('utf-8') != 'string':
-            print("Deleting existing key 'scraping_progress' due to wrong type.")
-            redis_client.delete('scraping_progress')  # Delete the key if it's the wrong type
-
-    # Initialize Redis with all years if not already set
+    # Check if scraping_progress exists
     if not redis_client.exists('scraping_progress'):
         for year_data in all_years:
             year, start, end, start_number = year_data
-            save_progress(year, 1, start_number, start, end, start_number, status='pending')
+            progress = json.dumps({
+                'page': 1,
+                'begin': start_number,
+                'start': start,
+                'end': end,
+                'start_number': start_number,
+                'status': 'pending'
+            })
+            redis_client.hset('scraping_progress', str(year), progress)
 
 def main():
     initialize_redis()  # Initialize Redis at the start

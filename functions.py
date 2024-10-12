@@ -440,13 +440,13 @@ def get_next_year():
                     # Watch the scraping_progress key for changes
                     pipe.watch('scraping_progress')
                     
-                    # Get the current progress
-                    progress = pipe.get('scraping_progress')
-                    progress = json.loads(progress) if progress else {}
+                    # Get all hash fields
+                    all_years = pipe.hgetall('scraping_progress')
                     
                     # Find the next unprocessed year
                     next_year = None
-                    for year, data in progress.items():
+                    for year, data_str in all_years.items():
+                        data = json.loads(data_str)
                         if data['status'] == 'pending':
                             next_year = int(year)
                             break
@@ -455,11 +455,11 @@ def get_next_year():
                         return None
                     
                     # Mark the year as in progress
-                    progress[str(next_year)]['status'] = 'in_progress'
+                    data['status'] = 'in_progress'
                     
                     # Start a transaction
                     pipe.multi()
-                    pipe.set('scraping_progress', json.dumps(progress))
+                    pipe.hset('scraping_progress', str(next_year), json.dumps(data))
                     pipe.execute()
                     
                     return next_year
