@@ -313,7 +313,7 @@ def extract_lines(driver):
 
 def initialize_search(driver, line, start_number, finish_number):
     try:
-        logging.info(f"Initializing search for line: {line}, start number: {start_number}")
+        logging.info(f"Initializing search for line: {line}, start number: {start_number}, finish number: {finish_number}")
 
         # Handle CAPTCHA if it appears
         if check_captcha(driver):
@@ -458,14 +458,14 @@ def process_line(line, pageurl, start, end, start_number):
         begin = progress['begin']
 
         global g_max_pages, c_max_pages, data
-        g_max_pages, data = initialize_search(driver, line, begin)
+        g_max_pages, data = initialize_search(driver, line, begin, end)
         c_max_pages = g_max_pages
         
         with alive_bar(g_max_pages, title=f"Processing year: {line}") as bar:
             while True:
                 try:
                     if not data or len(data) == 0:
-                        max_pages, data = initialize_search(driver, line, begin)
+                        max_pages, data = initialize_search(driver, line, begin, end)
                         if not max_pages or not data:
                             raise Exception("Failed to initialize search")
 
@@ -525,7 +525,7 @@ def process_line(line, pageurl, start, end, start_number):
                             print("Error Occurred: " + str(e))
                             check_captcha(driver)
                             wait_for_captcha_to_disappear(driver)
-                            c_max_pages, data = initialize_search(driver, line, begin)
+                            c_max_pages, data = initialize_search(driver, line, begin, end)
                             hilal = 1
                             i = 0
 
@@ -540,7 +540,7 @@ def process_line(line, pageurl, start, end, start_number):
                     print("Error Occurred: " + str(e))
                     check_captcha(driver)
                     wait_for_captcha_to_disappear(driver)
-                    c_max_pages, data = initialize_search(driver, line, begin)
+                    c_max_pages, data = initialize_search(driver, line, begin, end)
                     hilal = 1
 
     except Exception:
