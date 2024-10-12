@@ -14,26 +14,14 @@ load_dotenv()
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
 url = urlparse(redis_url)
 
-# Create a custom SSL context
-ssl_context = ssl.create_default_context()
-ssl_context.check_hostname = False
-ssl_context.verify_mode = ssl.CERT_NONE
-
+# Create the Redis client
 redis_client = redis.Redis(
     host=url.hostname,
     port=url.port,
     username=url.username,
     password=url.password,
     ssl=True,
-    ssl_cert_reqs=None,
-    connection_pool=redis.ConnectionPool(
-        host=url.hostname,
-        port=url.port,
-        username=url.username,
-        password=url.password,
-        ssl=True,
-        ssl_cert_reqs=None
-    )
+    ssl_cert_reqs=None  # Disable SSL certificate verification
 )
 
 from selenium import webdriver
