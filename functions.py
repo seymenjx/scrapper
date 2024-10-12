@@ -25,10 +25,14 @@ redis_client = redis.Redis(
     username=url.username,
     password=url.password,
     ssl=True,
-    ssl_cert_reqs='none',
-    ssl_ca_certs=None,
+    ssl_cert_reqs=None,
     connection_pool=redis.ConnectionPool(
-        ssl_context=ssl_context
+        host=url.hostname,
+        port=url.port,
+        username=url.username,
+        password=url.password,
+        ssl=True,
+        ssl_cert_reqs=None
     )
 )
 
