@@ -670,3 +670,12 @@ def check_redis_connection():
     except redis.ConnectionError as e:
         print(f"Failed to connect to Redis: {e}")
         return False
+
+def update_year_status(year, status):
+    current_data = redis_client.hget("scraping_progress", year)
+    if current_data:
+        data = json.loads(current_data)
+        data['status'] = status
+        redis_client.hset("scraping_progress", year, json.dumps(data))
+    else:
+        print(f"No data found for year {year} when updating status")
