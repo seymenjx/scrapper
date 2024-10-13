@@ -14,15 +14,14 @@ load_dotenv()
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
 url = urlparse(redis_url)
 
+# Create a Redis connection pool
+redis_pool = redis.ConnectionPool.from_url(os.getenv('REDIS_URL'), max_connections=10)
+
+def get_redis_connection():
+    return redis.Redis(connection_pool=redis_pool)
+
 # Create the Redis client
-redis_client = redis.Redis(
-    host=url.hostname,
-    port=url.port,
-    username=url.username,
-    password=url.password,
-    ssl=True,  # Enable SSL
-    ssl_cert_reqs='none'  # Disable SSL certificate verification
-)
+redis_client = get_redis_connection()
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -672,6 +671,7 @@ def check_redis_connection():
         return False
 
 def update_year_status(year, status):
+    redis_client = get_redis_connection()
     current_data = redis_client.hget("scraping_progress", year)
     if current_data:
         data = json.loads(current_data)
