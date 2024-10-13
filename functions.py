@@ -313,7 +313,7 @@ def extract_lines(driver):
 
 def initialize_search(driver, line, start_number, finish_number):
     try:
-        logging.info(f"Initializing search for line: {line}, start number: {start_number}, finish number: {finish_number}")
+        logging.info(f"Initializing search for year: {line}, start number: {start_number}, finish number: {finish_number}")
 
         # Handle CAPTCHA if it appears
         if check_captcha(driver):
@@ -413,7 +413,6 @@ def initialize_search(driver, line, start_number, finish_number):
         if check_captcha(driver):
             wait_for_captcha_to_disappear(driver)
 
-        # Instead of recursively calling initialize_search, return None values
         return None, None
 
 def get_progress(year):
@@ -507,8 +506,9 @@ def process_line(line, pageurl, start, end, start_number):
                         max_retries = 3
                         for retry in range(max_retries):
                             try:
-                                first_record = element_rows[0].find_elements(By.TAG_NAME, 'td')[1].get_attribute("innerText")
-                                begin = int(first_record.split("/")[1])
+                                #did change the reading first record
+                                esas_number = int(data[i][1].split('/')[1])
+                                begin = esas_number
 
                                 expected_file_name = f'Esas:{data[i][1].replace("/", " ")} Karar:{data[i][2].replace("/", " ")}'
                                 sanitized_expected_file_name = sanitize_file_name(expected_file_name)
@@ -525,7 +525,6 @@ def process_line(line, pageurl, start, end, start_number):
                                 else:
                                     print(f"Content mismatch for file: {s3_key}. Deleting old file and uploading new one.")
                                     try:
-                                        # Delete the existing object from S3
                                         s3_client.delete_object(Bucket=AWS_BUCKET_NAME, Key=s3_key)
                                         print(f"Deleted old file from S3: {s3_key}")
                                     except s3_client.exceptions.NoSuchKey:
@@ -546,10 +545,8 @@ def process_line(line, pageurl, start, end, start_number):
                                 upload_to_s3(file_path, AWS_BUCKET_NAME, s3_key)
                                 os.remove(file_path)
 
-                                i += 1
-                                
                                 # Save progress to Redis
-                                save_progress(line, hilal, begin)
+                                save_progress(line, hilal, begin, start, end, start_number)
                                 
                                 break  # If successful, break the retry loop
                             except StaleElementReferenceException:
@@ -565,6 +562,7 @@ def process_line(line, pageurl, start, end, start_number):
                                 else:
                                     raise  # If max retries reached, raise the exception
 
+                    # Move to the next page
                     element = WebDriverWait(driver, 40).until(
                         EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
                     element.click()
