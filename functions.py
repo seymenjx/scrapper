@@ -3,6 +3,7 @@ import json
 import os
 import ssl
 from urllib.parse import urlparse
+import logging
 
 # Add these imports at the top of the file
 from dotenv import load_dotenv
@@ -10,18 +11,51 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Initialize Redis client
-redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-url = urlparse(redis_url)
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# Create a Redis connection pool
-redis_pool = redis.ConnectionPool.from_url(os.getenv('REDIS_URL'), max_connections=10)
+# Get Redis URL from environment variable
+REDIS_URL = os.getenv('REDIS_URL')
+
+if not REDIS_URL:
+    logger.error("REDIS_URL environment variable is not set")
+    raise ValueError("REDIS_URL environment variable is not set")
+
+if not REDIS_URL.startswith("redis://"):
+    logger.error(f"Invalid REDIS_URL format: {REDIS_URL}")
+    raise ValueError(f"Invalid REDIS_URL format: {REDIS_URL}")
+
+try:
+    # Create a Redis connection pool
+    redis_pool = redis.ConnectionPool.from_url(REDIS_URL, max_connections=10)
+    logger.info("Redis connection pool created successfully")
+except redis.exceptions.ConnectionError as e:
+    logger.error(f"Failed to create Redis connection pool: {str(e)}")
+    raise
 
 def get_redis_connection():
-    return redis.Redis(connection_pool=redis_pool)
+    try:
+        return redis.Redis(connection_pool=redis_pool)
+    except redis.exceptions.ConnectionError as e:
+        logger.error(f"Failed to get Redis connection: {str(e)}")
+        raise
 
-# Create the Redis client
-redis_client = get_redis_connection()
+def update_year_status(year, status):
+    try:
+        redis_client = get_redis_connection()
+        current_data = redis_client.hget("scraping_progress", year)
+        if current_data:
+            data = json.loads(current_data)
+            data['status'] = status
+            redis_client.hset("scraping_progress", year, json.dumps(data))
+            logger.info(f"Updated status for year {year} to {status}")
+        else:
+            logger.warning(f"No data found for year {year} when updating status")
+    except Exception as e:
+        logger.error(f"Error updating year status: {str(e)}")
+
+# Update other functions to use get_redis_connection() instead of a global redis_client
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -415,6 +449,7 @@ def initialize_search(driver, line, start_number, finish_number):
         return None, None
 
 def get_progress(year):
+    redis_client = get_redis_connection()
     progress = redis_client.hget('scraping_progress', str(year))
     if progress:
         return json.loads(progress)
@@ -429,6 +464,7 @@ def save_progress(year, page, begin, start, end, start_number, status='in_progre
         'start_number': start_number,
         'status': status
     })
+    redis_client = get_redis_connection()
     redis_client.hset('scraping_progress', str(year), progress)
 
 def get_next_year():
@@ -437,6 +473,7 @@ def get_next_year():
 
     for attempt in range(max_retries):
         try:
+            redis_client = get_redis_connection()
             with redis_client.pipeline() as pipe:
                 while True:
                     try:
@@ -663,19 +700,10 @@ def upload_to_s3(file_path, bucket, object_name):
 
 def check_redis_connection():
     try:
+        redis_client = get_redis_connection()
         redis_client.ping()
         print("Successfully connected to Redis")
         return True
     except redis.ConnectionError as e:
         print(f"Failed to connect to Redis: {e}")
         return False
-
-def update_year_status(year, status):
-    redis_client = get_redis_connection()
-    current_data = redis_client.hget("scraping_progress", year)
-    if current_data:
-        data = json.loads(current_data)
-        data['status'] = status
-        redis_client.hset("scraping_progress", year, json.dumps(data))
-    else:
-        print(f"No data found for year {year} when updating status")

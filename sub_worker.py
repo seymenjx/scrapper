@@ -5,7 +5,6 @@ from time import sleep
 from dotenv import load_dotenv
 import redis
 from redis.exceptions import ConnectionError, TimeoutError
-from functions import process_line, get_next_year, get_progress, update_year_status
 
 # Load environment variables
 load_dotenv()
@@ -14,13 +13,14 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+try:
+    from functions import process_line, get_next_year, get_progress, update_year_status, get_redis_connection
+    logger.info("Successfully imported functions")
+except ImportError as e:
+    logger.error(f"Failed to import functions: {str(e)}")
+    raise
+
 pageurl = "https://karararama.yargitay.gov.tr/"
-
-# Create a Redis connection pool
-redis_pool = redis.ConnectionPool.from_url(os.getenv('REDIS_URL'), max_connections=10)
-
-def get_redis_connection():
-    return redis.Redis(connection_pool=redis_pool)
 
 def process_year(year):
     logger.info(f"Processing year: {year}")
@@ -46,8 +46,7 @@ def main():
 
     while True:
         try:
-            redis_client = get_redis_connection()
-            year = get_next_year(redis_client)
+            year = get_next_year()
             if year is None:
                 logger.info(f"Sub-worker {worker_id}: No pending years found. Waiting before next check.")
                 sleep(60)  # Wait for 60 seconds before checking again
