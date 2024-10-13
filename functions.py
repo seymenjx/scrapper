@@ -433,37 +433,53 @@ def save_progress(year, page, begin, start, end, start_number, status='in_progre
     redis_client.hset('scraping_progress', str(year), progress)
 
 def get_next_year():
-    try:
-        with redis_client.pipeline() as pipe:
-            while True:
-                try:
-                    pipe.watch('scraping_progress')
-                    all_years = pipe.hgetall('scraping_progress')
-                    
-                    next_year = None
-                    for year, data_str in all_years.items():
-                        data = json.loads(data_str)
-                        print(f"Checking year {year}: status = {data['status']}")  # Debug print
-                        if data['status'] == 'pending':
-                            next_year = int(year)
-                            break
-                    
-                    if next_year is None:
-                        print("No pending years found")  # Debug print
-                        return None
-                    
-                    data['status'] = 'in_progress'
-                    pipe.multi()
-                    pipe.hset('scraping_progress', str(next_year), json.dumps(data))
-                    pipe.execute()
-                    
-                    print(f"Selected year {next_year} for processing")  # Debug print
-                    return next_year
-                except redis.exceptions.WatchError:
-                    continue
-    except Exception as e:
-        print(f"Error in get_next_year: {e}")
-        return None
+    max_retries = 3
+    retry_delay = 5  # seconds
+
+    for attempt in range(max_retries):
+        try:
+            with redis_client.pipeline() as pipe:
+                while True:
+                    try:
+                        pipe.watch('scraping_progress')
+                        all_years = pipe.hgetall('scraping_progress')
+                        
+                        print("Current scraping progress:", all_years)
+                        
+                        next_year = None
+                        for year, data_str in all_years.items():
+                            data = json.loads(data_str)
+                            print(f"Checking year {year}: status = {data['status']}")
+                            if data['status'] == 'pending':
+                                next_year = int(year)
+                                break
+                        
+                        if next_year is None:
+                            print("No pending years found")
+                            return None
+                        
+                        data['status'] = 'in_progress'
+                        pipe.multi()
+                        pipe.hset('scraping_progress', str(next_year), json.dumps(data))
+                        pipe.execute()
+                        
+                        print(f"Selected year {next_year} for processing")
+                        return next_year
+                    except redis.WatchError:
+                        continue
+            
+        except redis.ConnectionError as e:
+            if attempt < max_retries - 1:
+                logging.warning(f"Redis connection error: {e}. Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                logging.error(f"Failed to connect to Redis after {max_retries} attempts: {e}")
+                raise
+        except Exception as e:
+            logging.error(f"Unexpected error in get_next_year: {e}")
+            raise
+
+    return None
 
 def process_line(line, pageurl, start, end, start_number):
     logging.info(f"Process started for year {line}")
@@ -645,3 +661,12 @@ def upload_to_s3(file_path, bucket, object_name):
         else:
             # Something else has gone wrong.
             print(f"Error checking if file exists: {e}")
+
+def check_redis_connection():
+    try:
+        redis_client.ping()
+        print("Successfully connected to Redis")
+        return True
+    except redis.ConnectionError as e:
+        print(f"Failed to connect to Redis: {e}")
+        return False

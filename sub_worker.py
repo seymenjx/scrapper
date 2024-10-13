@@ -1,6 +1,7 @@
 from functions import process_line, get_next_year, get_progress
 import os
 from dotenv import load_dotenv
+from time import sleep
 
 # Load environment variables
 load_dotenv()
@@ -8,6 +9,7 @@ load_dotenv()
 pageurl = "https://karararama.yargitay.gov.tr/"
 
 def main():
+    sleep(10)
     while True:
         year = get_next_year()
         if year is None:

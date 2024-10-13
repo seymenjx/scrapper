@@ -1,4 +1,4 @@
-from functions import redis_client, save_progress, get_next_year, get_progress
+from functions import redis_client, get_next_year, get_progress, check_redis_connection
 import json
 import os
 from dotenv import load_dotenv
@@ -93,4 +93,7 @@ def main():
         print(f"Fatal error in main: {str(e)}")
 
 if __name__ == "__main__":
-    main()
+    if check_redis_connection():
+        main()
+    else:
+        print("Exiting due to Redis connection failure")
