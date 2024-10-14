@@ -4,8 +4,29 @@ import os
 import ssl
 from urllib.parse import urlparse
 import logging
-
-# Add these imports at the top of the file
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.keys import Keys
+from webdriver_manager.chrome import ChromeDriverManager
+from fake_useragent import UserAgent
+import time
+import random
+import requests
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException, StaleElementReferenceException
+from bs4 import BeautifulSoup, NavigableString, Tag
+import re
+import os
+import boto3
+from botocore.exceptions import ClientError
+from dotenv import dotenv_values
+from alive_progress import alive_bar
+from selenium.webdriver.common.action_chains import ActionChains
+import traceback
+import logging
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -34,12 +55,14 @@ use_ssl = parsed_url.scheme == "rediss"
 
 # Create a Redis connection pool
 try:
-    redis_pool = redis.ConnectionPool.from_url(
-        REDIS_URL,
-        max_connections=20,
-        ssl=use_ssl,
-        ssl_cert_reqs=ssl.CERT_NONE if use_ssl else None  # Adjust based on your SSL requirements
-    )
+    connection_kwargs = {
+        'max_connections': 20,
+    }
+    
+    if use_ssl:
+        connection_kwargs['ssl_cert_reqs'] = ssl.CERT_NONE
+    
+    redis_pool = redis.ConnectionPool.from_url(REDIS_URL, **connection_kwargs)
     logger.info("Redis connection pool created successfully")
 except redis.exceptions.ConnectionError as e:
     logger.error(f"Failed to create Redis connection pool: {str(e)}")
@@ -68,29 +91,6 @@ def update_year_status(year, status):
 
 # Update other functions to use get_redis_connection() instead of a global redis_client
 
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.keys import Keys
-from webdriver_manager.chrome import ChromeDriverManager
-from fake_useragent import UserAgent
-import time
-import random
-import requests
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException, StaleElementReferenceException
-from bs4 import BeautifulSoup, NavigableString, Tag
-import re
-import os
-import boto3
-from botocore.exceptions import ClientError
-from dotenv import dotenv_values
-from alive_progress import alive_bar
-from selenium.webdriver.common.action_chains import ActionChains
-import traceback
-import logging
 
 # Load .env.local values and update the os.environ dictionary
 config = {
