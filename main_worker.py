@@ -75,20 +75,7 @@ def main():
     try:
         initialize_redis()
         reset_progress()
-        while True:
-            year = get_next_year()
-            if year is None:
-                logger.info("All years processed or no pending years. Waiting...")
-                time.sleep(60)  # Wait for 60 seconds before checking again
-                continue
-
-            logger.info(f"Main worker found pending year: {year}")
-            progress = get_progress(year)
-            if progress:
-                update_year_status(year, 'in_progress')
-                logger.info(f"Updated year {year} status to 'in_progress'")
-            else:
-                logger.warning(f"No progress data found for year {year}")
+        logger.info("Redis initialized and progress reset")
     except Exception as e:
         logger.error(f"Fatal error in main: {str(e)}")
 
