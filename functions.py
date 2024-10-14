@@ -496,14 +496,135 @@ def get_next_year():
         logger.error(f"Error in get_next_year: {str(e)}")
         return None
 
-def process_line(year, pageurl, start, end, start_number):
-    logger.info(f"Process started for year {year}")
-    driver = get_chrome_driver()
+def process_line(line, pageurl, start, end, start_number):
+    logging.info(f"Process started for year {line}")
+    print(f"Process started for year {line}")
+    driver = setup_driver()
+    s3_client = boto3.client('s3',
+                             aws_access_key_id=AWS_ACCESS_KEY_ID,
+                             aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
+
     try:
-        # Your existing code here
-        pass
+        driver.get(pageurl)
+        human_like_actions(driver)
+
+        # Retrieve progress from Redis
+        progress = get_progress(line)
+        hilal = progress['page']
+        begin = progress['begin']
+
+        global g_max_pages, c_max_pages, data
+        g_max_pages, data = initialize_search(driver, line, begin, end)
+        if g_max_pages is None or data is None:
+            raise Exception("Failed to initialize search")
+        c_max_pages = g_max_pages
+        
+        with alive_bar(g_max_pages, title=f"Processing year: {line}") as bar:
+            while True:
+                try:
+                    if not data or len(data) == 0:
+                        max_pages, data = initialize_search(driver, line, begin, end)
+                        if max_pages is None or data is None:
+                            raise Exception("Failed to initialize search")
+
+                    element_table = WebDriverWait(driver, 20).until(
+                        EC.presence_of_element_located((By.ID, "detayAramaSonuclar"))
+                    )
+                    element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
+                    element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
+
+                    for i, row in enumerate(element_rows):
+                        max_retries = 3
+                        for retry in range(max_retries):
+                            try:
+                                #did change the reading first record
+                                esas_number = int(data[i][1].split('/')[1])
+                                begin = esas_number
+
+                                expected_file_name = f'Esas:{data[i][1].replace("/", " ")} Karar:{data[i][2].replace("/", " ")}'
+                                sanitized_expected_file_name = sanitize_file_name(expected_file_name)
+                                s3_key = f'{sanitized_expected_file_name}.txt'
+
+                                driver.implicitly_wait(10)
+                                ActionChains(driver).move_to_element(row).click(row).perform()
+
+                                time.sleep(0.5)
+                                satirlar = extract_lines(driver)
+
+                                if verify_content_matches_filename(satirlar, sanitized_expected_file_name, s3_client, AWS_BUCKET_NAME):
+                                    print(f"Content matches for file: {s3_key}. No action needed.")
+                                else:
+                                    print(f"Content mismatch for file: {s3_key}. Deleting old file and uploading new one.")
+                                    try:
+                                        s3_client.delete_object(Bucket=AWS_BUCKET_NAME, Key=s3_key)
+                                        print(f"Deleted old file from S3: {s3_key}")
+                                    except s3_client.exceptions.NoSuchKey:
+                                        print(f"No existing file to delete in S3: {s3_key}")
+                                
+                                # Upload the new content
+                                base_path = os.getcwd()
+                                output_dir = os.path.join(base_path, 'output')
+                                os.makedirs(output_dir, exist_ok=True)
+
+                                file_path = os.path.join(output_dir, s3_key)
+                                with open(file_path, 'w', encoding='utf-8') as esas:
+                                    for satir in satirlar:
+                                        esas.write(satir)
+                                        esas.write('\n')
+
+                                print(f"Uploading new file to S3: {s3_key}")
+                                upload_to_s3(file_path, AWS_BUCKET_NAME, s3_key)
+                                os.remove(file_path)
+
+                                # Save progress to Redis
+                                save_progress(line, hilal, begin, start, end, start_number)
+                                
+                                break  # If successful, break the retry loop
+                            except StaleElementReferenceException:
+                                if retry < max_retries - 1:
+                                    print(f"Stale element, retrying ({retry + 1}/{max_retries})...")
+                                    # Refresh the elements
+                                    element_table = WebDriverWait(driver, 20).until(
+                                        EC.presence_of_element_located((By.ID, "detayAramaSonuclar"))
+                                    )
+                                    element_table_body = element_table.find_element(By.TAG_NAME, 'tbody')
+                                    element_rows = element_table_body.find_elements(By.TAG_NAME, 'tr')
+                                    row = element_rows[i]  # Get the updated row
+                                else:
+                                    raise  # If max retries reached, raise the exception
+
+                    # Move to the next page
+                    element = WebDriverWait(driver, 40).until(
+                        EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
+                    element.click()
+                    hilal += 1
+                    bar()
+                    print("Moved to Next Page: " + str(hilal))
+
+                except Exception as e:
+                    print("Error Occurred: " + str(e))
+                    check_captcha(driver)
+                    wait_for_captcha_to_disappear(driver)
+                    c_max_pages, data = initialize_search(driver, line, begin, end)
+                    hilal = 1
+
+    except Exception as e:
+        print(f"Error processing year {line}: {str(e)}")
+        # Set the year's status back to pending
+        progress = get_progress(line)
+        if progress:
+            progress['status'] = 'pending'
+            save_progress(line, **progress)
+        raise  # Re-raise the exception to be caught by the main loop
     finally:
         driver.quit()
+        if begin > end:
+            # Mark the year as completed when done
+            save_progress(line, 1, 1, start, end, start_number, status='completed')
+        else:
+            # Save the current progress
+            save_progress(line, hilal, begin, start, end, start_number)
+
 
 def verify_content_matches_filename(new_content, expected_filename, s3_client, bucket_name):
     s3_key = f'{expected_filename}.txt'
@@ -565,14 +686,13 @@ def check_redis_connection():
         print(f"Failed to connect to Redis: {e}")
         return False
 
-def get_chrome_driver():
+def setup_driver():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
-    chrome_options.binary_location = os.environ.get("GOOGLE_CHROME_BIN")
+    chrome_options.add_argument("--disable-dev-shm-usage")
 
-    service = Service(executable_path=os.environ.get("CHROMEDRIVER_PATH"))
-    
+    service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
