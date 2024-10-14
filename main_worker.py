@@ -1,8 +1,9 @@
-from functions import get_redis_connection, get_next_year, get_progress, check_redis_connection
+from functions import get_redis_connection, get_next_year, get_progress, check_redis_connection, update_year_status
 import json
 import os
 from dotenv import load_dotenv
 import logging
+import time
 
 
 load_dotenv()
@@ -58,7 +59,6 @@ def initialize_redis():
     else:
         logger.info("Redis already initialized, skipping initialization")
     
-    # Print the contents of scraping_progress after initialization
     all_years = redis_client.hgetall('scraping_progress')
     logger.info(f"Current contents of scraping_progress: {all_years}")
 
@@ -74,22 +74,19 @@ def reset_progress():
 def main():
     try:
         initialize_redis()
-        reset_progress()  # Ensure Redis is initialized
+        reset_progress()
         while True:
             year = get_next_year()
             if year is None:
-                logger.info("All years processed")
-                break
+                logger.info("All years processed or no pending years. Waiting...")
+                time.sleep(60)  # Wait for 60 seconds before checking again
+                continue
 
-            logger.info(f"Processing year: {year}")
+            logger.info(f"Main worker found pending year: {year}")
             progress = get_progress(year)
             if progress:
-                try:
-                    # Here you would call the sub-worker processing function
-                    # For example: process_line(year, pageurl, progress['start'], progress['end'], progress['start_number'])
-                    logger.info(f"Completed processing for year {year}")
-                except Exception as e:
-                    logger.error(f"Error processing year {year}: {str(e)}")
+                update_year_status(year, 'in_progress')
+                logger.info(f"Updated year {year} status to 'in_progress'")
             else:
                 logger.warning(f"No progress data found for year {year}")
     except Exception as e:

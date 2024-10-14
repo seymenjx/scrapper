@@ -38,7 +38,6 @@ def process_year(year):
         update_year_status(year, "pending")  # Reset status to allow retry
 
 def main():
-    sleep(30) # Wait for main worker to initialize Redis
     worker_id = random.randint(1000, 9999)
     logger.info(f"Sub-worker {worker_id} started")
     
@@ -53,6 +52,7 @@ def main():
                 sleep(60)  # Wait for 60 seconds before checking again
                 continue
 
+            logger.info(f"Sub-worker {worker_id} picked up year: {year}")
             process_year(year)
             backoff_time = 1  # Reset backoff time on successful operation
         except (ConnectionError, TimeoutError) as e:
