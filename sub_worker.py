@@ -38,6 +38,7 @@ def process_year(year):
         update_year_status(year, "pending")  # Reset status to allow retry
 
 def main():
+    sleep(30) # Wait for main worker to initialize Redis
     worker_id = random.randint(1000, 9999)
     logger.info(f"Sub-worker {worker_id} started")
     
