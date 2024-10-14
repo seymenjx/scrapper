@@ -22,13 +22,24 @@ if not REDIS_URL:
     logger.error("REDIS_URL environment variable is not set")
     raise ValueError("REDIS_URL environment variable is not set")
 
-if not REDIS_URL.startswith("redis://"):
-    logger.error(f"Invalid REDIS_URL format: {REDIS_URL}")
-    raise ValueError(f"Invalid REDIS_URL format: {REDIS_URL}")
+# Parse the Redis URL
+parsed_url = urlparse(REDIS_URL)
 
+if parsed_url.scheme not in ("redis", "rediss"):
+    logger.error(f"Invalid REDIS_URL scheme: {parsed_url.scheme}. Expected 'redis' or 'rediss'.")
+    raise ValueError(f"Invalid REDIS_URL scheme: {parsed_url.scheme}. Expected 'redis' or 'rediss'.")
+
+# Determine if SSL should be used
+use_ssl = parsed_url.scheme == "rediss"
+
+# Create a Redis connection pool
 try:
-    # Create a Redis connection pool
-    redis_pool = redis.ConnectionPool.from_url(REDIS_URL, max_connections=10)
+    redis_pool = redis.ConnectionPool.from_url(
+        REDIS_URL,
+        max_connections=20,
+        ssl=use_ssl,
+        ssl_cert_reqs=ssl.CERT_NONE if use_ssl else None  # Adjust based on your SSL requirements
+    )
     logger.info("Redis connection pool created successfully")
 except redis.exceptions.ConnectionError as e:
     logger.error(f"Failed to create Redis connection pool: {str(e)}")
@@ -44,11 +55,11 @@ def get_redis_connection():
 def update_year_status(year, status):
     try:
         redis_client = get_redis_connection()
-        current_data = redis_client.hget("scraping_progress", year)
+        current_data = redis_client.hget("scraping_progress", str(year))
         if current_data:
             data = json.loads(current_data)
             data['status'] = status
-            redis_client.hset("scraping_progress", year, json.dumps(data))
+            redis_client.hset("scraping_progress", str(year), json.dumps(data))
             logger.info(f"Updated status for year {year} to {status}")
         else:
             logger.warning(f"No data found for year {year} when updating status")
