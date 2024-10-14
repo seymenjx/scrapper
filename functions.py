@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Get Redis URL from environment variable
-REDIS_URL = os.getenv('REDIS_URL')
+REDIS_URL = os.getenv('HEROKU_REDIS_BLUE_URL')
 
 if not REDIS_URL:
     logger.error("REDIS_URL environment variable is not set")
