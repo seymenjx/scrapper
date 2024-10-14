@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # TODO: add all years
-all_years = [
+ALL_YEARS = [
     [2015, 1, 5044, 999999],
     [2015, 1, 5000, 11215],
     [2014, 1, 4439, 999999],
@@ -42,7 +42,7 @@ def initialize_redis():
     logger.info("Starting Redis initialization...")
     redis_client = get_redis_connection()
     if not redis_client.exists('scraping_progress'):
-        for year_data in all_years:
+        for year_data in ALL_YEARS:
             year, start, end, start_number = year_data
             progress = json.dumps({
                 'page': 1,
