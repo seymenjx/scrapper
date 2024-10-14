@@ -1,4 +1,4 @@
-from functions import redis_client, get_next_year, get_progress, check_redis_connection
+from functions import get_redis_connection, get_next_year, get_progress, check_redis_connection
 import json
 import os
 from dotenv import load_dotenv
@@ -6,6 +6,10 @@ import logging
 
 
 load_dotenv()
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # TODO: add all years
 all_years = [
@@ -35,9 +39,10 @@ all_years = [
 ]
 
 def initialize_redis():
-    print("Starting Redis initialization...")
+    logger.info("Starting Redis initialization...")
+    redis_client = get_redis_connection()
     if not redis_client.exists('scraping_progress'):
-        for year_data in all_years:  # Ensure all_years is defined and contains the years you want to process
+        for year_data in all_years:
             year, start, end, start_number = year_data
             progress = json.dumps({
                 'page': 1,
@@ -48,22 +53,23 @@ def initialize_redis():
                 'status': 'pending'
             })
             redis_client.hset('scraping_progress', str(year), progress)
-            print(f"Added year {year} to Redis")
-        print("Redis initialization complete")
+            logger.info(f"Added year {year} to Redis")
+        logger.info("Redis initialization complete")
     else:
-        print("Redis already initialized, skipping initialization")
+        logger.info("Redis already initialized, skipping initialization")
     
     # Print the contents of scraping_progress after initialization
     all_years = redis_client.hgetall('scraping_progress')
-    print("Current contents of scraping_progress:", all_years)
+    logger.info(f"Current contents of scraping_progress: {all_years}")
 
 def reset_progress():
+    redis_client = get_redis_connection()
     all_years = redis_client.hgetall('scraping_progress')
     for year, data_str in all_years.items():
         data = json.loads(data_str)
         data['status'] = 'pending'
         redis_client.hset('scraping_progress', year, json.dumps(data))
-    print("All years reset to pending status")
+    logger.info("All years reset to pending status")
 
 def main():
     try:
@@ -72,27 +78,25 @@ def main():
         while True:
             year = get_next_year()
             if year is None:
-                print("All years processed")
+                logger.info("All years processed")
                 break
 
-            print(f"Processing year: {year}")
+            logger.info(f"Processing year: {year}")
             progress = get_progress(year)
             if progress:
                 try:
                     # Here you would call the sub-worker processing function
                     # For example: process_line(year, pageurl, progress['start'], progress['end'], progress['start_number'])
-                    print(f"Completed processing for year {year}")
+                    logger.info(f"Completed processing for year {year}")
                 except Exception as e:
-                    logging.error(f"Error processing year {year}: {str(e)}")
-                    print(f"Error processing year {year}: {str(e)}")
+                    logger.error(f"Error processing year {year}: {str(e)}")
             else:
-                print(f"No progress data found for year {year}")
+                logger.warning(f"No progress data found for year {year}")
     except Exception as e:
-        logging.error(f"Fatal error in main: {str(e)}")
-        print(f"Fatal error in main: {str(e)}")
+        logger.error(f"Fatal error in main: {str(e)}")
 
 if __name__ == "__main__":
     if check_redis_connection():
         main()
     else:
-        print("Exiting due to Redis connection failure")
+        logger.error("Exiting due to Redis connection failure")
