@@ -474,11 +474,10 @@ def get_progress(year):
         return json.loads(progress)
     return None
 
-def save_progress(year, page, begin, start, end, left_off, status='in_progress'):
+def save_progress(year, page, begin, end, left_off, status='in_progress'):
     progress = json.dumps({
         'page': page,
         'begin': begin,
-        'start': start,
         'end': end,
         'where_it_left_off': left_off,
         'status': status
@@ -504,7 +503,7 @@ def get_next_year():
         logger.error(f"Error in get_next_year: {str(e)}")
         return None
 
-def process_line(line, pageurl, start, end, start_number):
+def process_line(line, pageurl, end, start_number):
     logging.info(f"Process started for year {line}")
     print(f"Process started for year {line}")
     driver = setup_driver()
@@ -586,7 +585,7 @@ def process_line(line, pageurl, start, end, start_number):
                                 os.remove(file_path)
 
                                 # Save progress to Redis
-                                save_progress(line, hilal, begin, start, end, start_number)
+                                save_progress(line, hilal, begin, end, start_number)
                                 
                                 break  # If successful, break the retry loop
                             except StaleElementReferenceException:
@@ -629,10 +628,10 @@ def process_line(line, pageurl, start, end, start_number):
         driver.quit()
         if begin > end:
             # Mark the year as completed when done
-            save_progress(line, 1, 1, start, end, start_number, status='completed')
+            save_progress(line, 1, 1, end, start_number, status='completed')
         else:
             # Save the current progress
-            save_progress(line, hilal, begin, start, end, start_number)
+            save_progress(line, hilal, begin, end, start_number)
 
 
 def verify_content_matches_filename(new_content, expected_filename, s3_client, bucket_name):

@@ -44,11 +44,11 @@ def initialize_redis():
     redis_client = get_redis_connection()
     if not redis_client.exists('scraping_progress'):
         for year_data in ALL_YEARS:
-            year, start, end, start_number = year_data
+            year, page, start_number, end  = year_data
             progress = json.dumps({
-                'page': 1,
+                'year': year,
                 'where_it_left_off': start_number,
-                'start': start,
+                'page': page,
                 'end': end,
                 'status': 'pending'
             })
