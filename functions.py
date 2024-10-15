@@ -12,6 +12,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.utils import ChromeType
 from fake_useragent import UserAgent
 import time
 import random
@@ -693,6 +694,12 @@ def setup_driver():
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
 
-    # Remove the version argument to automatically fetch the compatible version
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    # Specify Chrome version 114
+    driver = webdriver.Chrome(
+        service=Service(ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()),
+        options=chrome_options
+    )
+    
+    print(f"Chrome version: {driver.capabilities['browserVersion']}")
+    
     return driver
