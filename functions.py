@@ -28,6 +28,14 @@ from selenium.webdriver.common.action_chains import ActionChains
 import traceback
 import logging
 from dotenv import load_dotenv
+from chromedriver_py import binary_path   
+import shutil
+
+
+# Remove existing ChromeDriver cache
+cache_path = '/app/.wdm'
+if os.path.exists(cache_path):
+    shutil.rmtree(cache_path)
 
 # Load environment variables
 load_dotenv()
@@ -693,11 +701,9 @@ def setup_driver():
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.binary_location = "/app/.chrome-for-testing/chrome-linux64/chrome"
-    
-    driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()),
-        options=chrome_options
-    )
+
+    service = Service(executable_path=binary_path)
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     
     print(f"Chrome version: {driver.capabilities['browserVersion']}")
     print(f"ChromeDriver version: {driver.capabilities['chrome']['chromedriverVersion']}")
