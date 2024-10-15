@@ -47,10 +47,9 @@ def initialize_redis():
             year, start, end, start_number = year_data
             progress = json.dumps({
                 'page': 1,
-                'begin': start_number,
+                'where_it_left_off': start_number,
                 'start': start,
                 'end': end,
-                'start_number': start_number,
                 'status': 'pending'
             })
             redis_client.hset('scraping_progress', str(year), progress)

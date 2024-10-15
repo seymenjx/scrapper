@@ -474,13 +474,13 @@ def get_progress(year):
         return json.loads(progress)
     return None
 
-def save_progress(year, page, begin, start, end, start_number, status='in_progress'):
+def save_progress(year, page, begin, start, end, left_off, status='in_progress'):
     progress = json.dumps({
         'page': page,
         'begin': begin,
         'start': start,
         'end': end,
-        'start_number': start_number,
+        'where_it_left_off': left_off,
         'status': status
     })
     redis_client = get_redis_connection()
@@ -519,7 +519,7 @@ def process_line(line, pageurl, start, end, start_number):
         # Retrieve progress from Redis
         progress = get_progress(line)
         hilal = progress['page']
-        begin = progress['begin']
+        begin = progress['where_it_left_off']
         finish = progress['end']
 
         global g_max_pages, c_max_pages, data
@@ -532,7 +532,7 @@ def process_line(line, pageurl, start, end, start_number):
             while True:
                 try:
                     if not data or len(data) == 0:
-                        max_pages, data = initialize_search(driver, line, begin, end)
+                        max_pages, data = initialize_search(driver, line, begin, finish)
                         if max_pages is None or data is None:
                             raise Exception("Failed to initialize search")
 
