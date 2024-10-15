@@ -520,9 +520,10 @@ def process_line(line, pageurl, start, end, start_number):
         progress = get_progress(line)
         hilal = progress['page']
         begin = progress['begin']
+        finish = progress['end']
 
         global g_max_pages, c_max_pages, data
-        g_max_pages, data = initialize_search(driver, line, begin, end)
+        g_max_pages, data = initialize_search(driver, line, begin, finish)
         if g_max_pages is None or data is None:
             raise Exception("Failed to initialize search")
         c_max_pages = g_max_pages
