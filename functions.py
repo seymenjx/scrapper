@@ -12,7 +12,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
-from webdriver_manager.core.utils import ChromeType
 from fake_useragent import UserAgent
 import time
 import random
@@ -686,7 +685,6 @@ def check_redis_connection():
     except redis.ConnectionError as e:
         print(f"Failed to connect to Redis: {e}")
         return False
-
 def setup_driver():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
@@ -694,12 +692,13 @@ def setup_driver():
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
 
-    # Specify Chrome version 114
+    # Use ChromeDriverManager without specifying ChromeType
     driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()),
+        service=Service(ChromeDriverManager().install()),
         options=chrome_options
     )
     
+    # Print Chrome version
     print(f"Chrome version: {driver.capabilities['browserVersion']}")
     
     return driver
