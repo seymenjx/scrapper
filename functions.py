@@ -685,20 +685,21 @@ def check_redis_connection():
     except redis.ConnectionError as e:
         print(f"Failed to connect to Redis: {e}")
         return False
+
 def setup_driver():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-
-    # Use ChromeDriverManager without specifying ChromeType
+    chrome_options.binary_location = "/app/.chrome-for-testing/chrome-linux64/chrome"
+    
     driver = webdriver.Chrome(
         service=Service(ChromeDriverManager().install()),
         options=chrome_options
     )
     
-    # Print Chrome version
     print(f"Chrome version: {driver.capabilities['browserVersion']}")
+    print(f"ChromeDriver version: {driver.capabilities['chrome']['chromedriverVersion']}")
     
     return driver
