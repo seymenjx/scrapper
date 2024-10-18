@@ -489,16 +489,32 @@ def get_next_year():
     redis_client = get_redis_connection()
     logger.info("Attempting to get next year from Redis")
     try:
-        all_years = redis_client.hgetall('scraping_progress')
-        logger.info(f"Retrieved {len(all_years)} years from Redis")
-        for year, data_str in all_years.items():
-            data = json.loads(data_str)
-            if data['status'] == 'pending':
-                year_int = int(year.decode('utf-8'))
-                logger.info(f"Found pending year: {year_int}")
-                return year_int
-        logger.info("No pending years found")
-        return None
+        while True:
+            all_years = redis_client.hgetall('scraping_progress')
+            logger.info(f"Retrieved {len(all_years)} years from Redis")
+            
+            for year, data_str in all_years.items():
+                data = json.loads(data_str)
+                if data['status'] == 'pending':
+                    year_int = int(year.decode('utf-8'))
+                    
+                    # Try to atomically update the status to 'in_progress'
+                    pipeline = redis_client.pipeline()
+                    pipeline.hget('scraping_progress', year)
+                    pipeline.hset('scraping_progress', year, json.dumps({**data, 'status': 'in_progress'}))
+                    result = pipeline.execute()
+                    
+                    # Check if the update was successful (i.e., the data hasn't changed)
+                    if result[0].decode('utf-8') == data_str.decode('utf-8'):
+                        logger.info(f"Successfully claimed year: {year_int}")
+                        return year_int
+                    else:
+                        logger.info(f"Year {year_int} was already claimed, trying next")
+            
+            # If we've checked all years and found none, wait a bit before trying again
+            logger.info("No pending years found, waiting before retry")
+            time.sleep(5)
+        
     except Exception as e:
         logger.error(f"Error in get_next_year: {str(e)}")
         return None
@@ -549,7 +565,7 @@ def process_line(line, pageurl):
                                 esas_number = data[i][1].split('/')[1]
                                 begin = int(esas_number[4:])
 
-                                expected_file_name = f'Esas:{data[i][1].replace("/", " ")} Karar:{data[i][2].replace("/", " ")}'
+                                expected_file_name = f'{line}/Esas:{data[i][1].replace("/", " ")} Karar:{data[i][2].replace("/", " ")}'
                                 sanitized_expected_file_name = sanitize_file_name(expected_file_name)
                                 s3_key = f'{sanitized_expected_file_name}.txt'
 
