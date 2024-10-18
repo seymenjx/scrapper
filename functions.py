@@ -567,7 +567,7 @@ def process_line(line, pageurl):
 
                                 expected_file_name = f'{line}/Esas:{data[i][1].replace("/", " ")} Karar:{data[i][2].replace("/", " ")}'
                                 sanitized_expected_file_name = sanitize_file_name(expected_file_name)
-                                s3_key = f'{sanitized_expected_file_name}.txt'
+                                s3_key = f'{line}/{sanitized_expected_file_name}.txt'
 
                                 driver.implicitly_wait(10)
                                 ActionChains(driver).move_to_element(row).click(row).perform()
