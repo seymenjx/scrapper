@@ -503,7 +503,7 @@ def get_next_year():
         logger.error(f"Error in get_next_year: {str(e)}")
         return None
 
-def process_line(line, pageurl, end, start_number):
+def process_line(line, pageurl):
     logging.info(f"Process started for year {line}")
     print(f"Process started for year {line}")
     driver = setup_driver()
@@ -585,7 +585,7 @@ def process_line(line, pageurl, end, start_number):
                                 os.remove(file_path)
 
                                 # Save progress to Redis
-                                save_progress(line, hilal, left_off=begin, end=finish, start_number=start_number)
+                                save_progress(line, hilal, left_off=begin, end=finish)
                                 
                                 break  # If successful, break the retry loop
                             except StaleElementReferenceException:
@@ -628,10 +628,10 @@ def process_line(line, pageurl, end, start_number):
         driver.quit()
         if begin > finish:
             # Mark the year as completed when done
-            save_progress(line, 1, 1, finish, start_number, status='completed')
+            save_progress(line, 1, 1, finish, 1, status='completed')
         else:
             # Save the current progress
-            save_progress(line, hilal, left_off=begin, end=finish, start_number=start_number)
+            save_progress(line, hilal, left_off=begin, end=finish)
 
 
 def verify_content_matches_filename(new_content, expected_filename, s3_client, bucket_name):

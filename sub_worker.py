@@ -27,7 +27,7 @@ def process_year(year):
     progress = get_progress(year)
     if progress:
         try:
-            process_line(year, pageurl, progress['end'], progress['where_it_left_off'])
+            process_line(year, pageurl)
             logger.info(f"Completed processing for year {year}")
             update_year_status(year, "completed")
         except Exception as e:
