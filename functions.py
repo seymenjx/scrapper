@@ -522,7 +522,7 @@ def process_line(line, pageurl):
         finish = progress['end']
 
         global g_max_pages, c_max_pages, data
-        g_max_pages, data = initialize_search(driver, line, begin, finish)
+        g_max_pages, data = initialize_search(driver=driver, line=line, start_number=begin, finish_number=finish)
         if g_max_pages is None or data is None:
             raise Exception("Failed to initialize search")
         c_max_pages = g_max_pages
@@ -531,7 +531,7 @@ def process_line(line, pageurl):
             while True:
                 try:
                     if not data or len(data) == 0:
-                        max_pages, data = initialize_search(driver, line, begin, finish)
+                        max_pages, data = initialize_search(driver=driver, line=line, start_number=begin, finish_number=finish)
                         if max_pages is None or data is None:
                             raise Exception("Failed to initialize search")
 
@@ -613,7 +613,7 @@ def process_line(line, pageurl):
                     print("Error Occurred: " + str(e))
                     check_captcha(driver)
                     wait_for_captcha_to_disappear(driver)
-                    c_max_pages, data = initialize_search(driver, line, begin, finish)
+                    c_max_pages, data =initialize_search(driver=driver, line=line, start_number=begin, finish_number=finish)
                     hilal = 1
 
     except Exception as e:
