@@ -476,8 +476,8 @@ def get_progress(year):
 
 def save_progress(year, page, begin, end, left_off, status='in_progress'):
     progress = json.dumps({
+        'year': year,
         'page': page,
-        'begin': begin,
         'end': end,
         'where_it_left_off': left_off,
         'status': status
@@ -613,7 +613,7 @@ def process_line(line, pageurl, end, start_number):
                     print("Error Occurred: " + str(e))
                     check_captcha(driver)
                     wait_for_captcha_to_disappear(driver)
-                    c_max_pages, data = initialize_search(driver, line, begin, end)
+                    c_max_pages, data = initialize_search(driver, line, begin, finish)
                     hilal = 1
 
     except Exception as e:
