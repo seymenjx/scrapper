@@ -474,7 +474,7 @@ def get_progress(year):
         return json.loads(progress)
     return None
 
-def save_progress(year, page, begin, end, left_off, status='in_progress'):
+def save_progress(year, page, end, left_off, status='in_progress'):
     progress = json.dumps({
         'year': year,
         'page': page,
@@ -546,8 +546,8 @@ def process_line(line, pageurl, end, start_number):
                         for retry in range(max_retries):
                             try:
                                 #did change the reading first record
-                                esas_number = int(data[i][1].split('/')[1])
-                                begin = esas_number
+                                esas_number = data[i][1].split('/')[1]
+                                begin = int(esas_number[4:])
 
                                 expected_file_name = f'Esas:{data[i][1].replace("/", " ")} Karar:{data[i][2].replace("/", " ")}'
                                 sanitized_expected_file_name = sanitize_file_name(expected_file_name)
@@ -585,7 +585,7 @@ def process_line(line, pageurl, end, start_number):
                                 os.remove(file_path)
 
                                 # Save progress to Redis
-                                save_progress(line, hilal, begin, end, start_number)
+                                save_progress(line, hilal, left_off=begin, end=finish, start_number=start_number)
                                 
                                 break  # If successful, break the retry loop
                             except StaleElementReferenceException:
@@ -626,12 +626,12 @@ def process_line(line, pageurl, end, start_number):
         raise  # Re-raise the exception to be caught by the main loop
     finally:
         driver.quit()
-        if begin > end:
+        if begin > finish:
             # Mark the year as completed when done
-            save_progress(line, 1, 1, end, start_number, status='completed')
+            save_progress(line, 1, 1, finish, start_number, status='completed')
         else:
             # Save the current progress
-            save_progress(line, hilal, begin, end, start_number)
+            save_progress(line, hilal, left_off=begin, end=finish, start_number=start_number)
 
 
 def verify_content_matches_filename(new_content, expected_filename, s3_client, bucket_name):
