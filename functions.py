@@ -279,6 +279,8 @@ def process_captcha(driver, sitekey, pageurl):
         request_id = solve_captcha(driver, sitekey, pageurl)
         if not request_id:
             return False
+        
+        time.sleep(25) #wait for captcha to be solved
 
         captcha_solution = get_captcha_solution(request_id)
         if not captcha_solution:
