@@ -621,12 +621,12 @@ def process_line(line, pageurl):
                                     raise  # If max retries reached, raise the exception
 
                     # Move to the next page
-                    element = WebDriverWait(driver, 40).until(
-                        EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
-                    element.click()
-                    hilal += 1
-                    bar()
-                    print("Moved to Next Page: " + str(hilal))
+                    #element = WebDriverWait(driver, 40).until(
+                    #    EC.element_to_be_clickable((By.XPATH, '//*[@id="detayAramaSonuclar_next"]/a')))
+                    #element.click()
+                    #hilal += 1
+                    #bar()
+                    #print("Moved to Next Page: " + str(hilal))
 
                 except Exception as e:
                     print("Error Occurred: " + str(e))
