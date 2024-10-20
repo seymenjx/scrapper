@@ -579,7 +579,9 @@ def process_line(line, pageurl):
 
                                 driver.implicitly_wait(10)
                                 ActionChains(driver).move_to_element(row).click(row).perform()
-
+                                if check_captcha(driver):
+                                    print("CAPTCHA handled, proceeding with search initialization.")
+                                    logging.info("CAPTCHA handled in process_line.")
                                 time.sleep(0.5)
                                 satirlar = extract_lines(driver)
 
