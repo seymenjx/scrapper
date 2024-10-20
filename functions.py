@@ -32,6 +32,7 @@ from chromedriver_py import binary_path
 import shutil
 
 
+
 # Remove existing ChromeDriver cache
 cache_path = '/app/.wdm'
 if os.path.exists(cache_path):
@@ -547,6 +548,10 @@ def process_line(line, pageurl):
         
         with alive_bar(g_max_pages, title=f"Processing year: {line}") as bar:
             while True:
+                progress = get_progress(line)
+                hilal = progress['page']
+                begin = progress['where_it_left_off']
+                finish = progress['end']
                 try:
                     if not data or len(data) == 0:
                         max_pages, data = initialize_search(driver=driver, line=line, start_number=begin, finish_number=finish)
