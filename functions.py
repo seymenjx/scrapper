@@ -548,6 +548,7 @@ def process_line(line, pageurl):
         
         with alive_bar(g_max_pages, title=f"Processing year: {line}") as bar:
             while True:
+                time.sleep(10)
                 progress = get_progress(line)
                 hilal = progress['page']
                 begin = progress['where_it_left_off']
