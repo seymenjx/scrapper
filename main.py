@@ -3,12 +3,13 @@ import requests
 import gc
 from db_client import Document
 import os
+import time
 
 BASE_URL = "https://karararama.yargitay.gov.tr"
 SEARCH_URL = f"{BASE_URL}/aramadetaylist"
 DOCUMENT_URL = f"{BASE_URL}/getDokuman"
 
-def search_records(year, start_number, end_number, page=1):
+def search_records(year, start_number, end_number, file, page=1):
     print(f'searching records for {year} for {page} page')
     payload = {
         "data": {
@@ -24,7 +25,6 @@ def search_records(year, start_number, end_number, page=1):
         url=SEARCH_URL,
         json=payload
         )
-        print(resp.text)
         resp = resp.json().get("data").get("data")
         if not resp:
             print('fucked')
@@ -38,18 +38,19 @@ def search_records(year, start_number, end_number, page=1):
             with open("progress_file.txt", 'a') as f:
                 f.write(f"{year}-{page} \n")
         
+        time.sleep(10)
+        
+        return
 
-    documents = []
+    documents = ''
     for obj in resp:
-        documents.append(
-            Document(
-                name = f"{obj.get('esasNo')}_{obj.get('kararNo')}",
-                doc_id = obj.get('id')
-            )
-        )
+        documents += f"{obj.get('esasNo')}_{obj.get('kararNo')}-{obj.get('id')}\n"
     
-    Document.objects.bulk_create(documents)
+    with open(file, 'a') as f:
+        f.write(documents)
+
     del documents
     gc.collect()
 
-#search_records(2009, 1, 99999, 2506)
+for i in range(1, 439+1):
+    search_records(2024, 1, 99999, "complete_2024.txt", i)
