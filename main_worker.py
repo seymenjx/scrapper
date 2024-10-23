@@ -1,4 +1,4 @@
-from functions import get_redis_connection, get_next_year, get_progress, check_redis_connection, update_year_status
+from api_scrapper import get_redis_connection, get_next_year, get_progress, check_redis_connection, update_year_status
 import json
 import os
 from dotenv import load_dotenv
@@ -14,29 +14,29 @@ logger = logging.getLogger(__name__)
 
 # TODO: add all years
 ALL_YEARS = [
-    [2015, 1, 5044, 999999],
-    [2015, 1, 5000, 11215],
-    [2014, 1, 4439, 999999],
-    [2014, 1, 5000, 13795],
-    [2013, 1, 3476, 999999],
-    [2013, 1, 5000, 14844],
-    [2016, 1, 3077, 999999],
-    [2016, 1, 5000, 12092],
-    [2011, 1, 1542, 999999],
-    [2023, 1, 1611, 999999],
-    [2024, 1, 273, 999999],
-    [2012, 1, 2246, 999999],
-    [2012, 1, 5000, 17086],
-    [2021, 1, 4468, 999999],
-    [2010, 1, 4414, 999999],
-    [2020, 1, 4126, 999999],
-    [2019, 1, 4076, 999999],
-    [2018, 1, 3533, 999999],
-    [2009, 1, 3167, 999999],
-    [2022, 1, 2454, 999999],
-    [2008, 1, 2186, 999999],
-    [2007, 1, 1813, 999999],
-    [2011, 1, 5000, 20645]
+    ['2015-1', 1, 5044, 999999],
+    ['2015-2', 1, 5000, 11215],
+    ['2014-1', 1, 4439, 999999],
+    ['2014-2', 1, 5000, 13795],
+    ['2013-1', 1, 3476, 999999],
+    ['2013-2', 1, 5000, 14844],
+    ['2016-1', 1, 3077, 999999],
+    ['2016-2', 1, 5000, 12092],
+    ['2011-1', 1, 1542, 999999],
+    ['2023-1', 1, 1611, 999999],
+    ['2024-1', 1, 273, 999999],
+    ['2012-1', 1, 2246, 999999],
+    ['2012-2', 1, 5000, 17086],
+    ['2021-1', 1, 4468, 999999],
+    ['2010-1', 1, 4414, 999999],
+    ['2020-1', 1, 4126, 999999],
+    ['2019-1', 1, 4076, 999999],
+    ['2018-1', 1, 3533, 999999],
+    ['2009-1', 1, 3167, 999999],
+    ['2022-1', 1, 2454, 999999],
+    ['2008-1', 1, 2186, 999999],
+    ['2007-1', 1, 1813, 999999],
+    ['2011-1', 1, 5000, 20645]
 ]
 
 def initialize_redis():
@@ -46,13 +46,13 @@ def initialize_redis():
         for year_data in ALL_YEARS:
             year, page, start_number, end  = year_data
             progress = json.dumps({
-                'year': year,
+                'year': year[:3],
                 'where_it_left_off': start_number,
                 'page': page,
                 'end': end,
                 'status': 'pending'
             })
-            redis_client.hset('scraping_progress', str(year), progress)
+            redis_client.hset('scraping_progress', str(year[:3]), progress)
             logger.info(f"Added year {year} to Redis")
         logger.info("Redis initialization complete")
     else:

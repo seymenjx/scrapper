@@ -14,20 +14,19 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 try:
-    from functions import process_line, get_next_year, get_progress, update_year_status, get_redis_connection
+    from api_scrapper import process_job, get_next_year, get_progress, update_year_status, get_redis_connection
     logger.info("Successfully imported functions")
 except ImportError as e:
     logger.error(f"Failed to import functions: {str(e)}")
     raise
 
-pageurl = "https://karararama.yargitay.gov.tr/"
 
 def process_year(year):
     logger.info(f"Processing year: {year}")
     progress = get_progress(year)
     if progress:
         try:
-            process_line(year, pageurl)
+            process_job(year)
             logger.info(f"Completed processing for year {year}")
             update_year_status(year, "completed")
         except Exception as e:
