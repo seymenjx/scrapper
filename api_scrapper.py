@@ -179,9 +179,6 @@ def extract_text_from_html(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     return soup.get_text(separator='\n', strip=True)
 
-def sanitize_file_name(file_name):
-    return ''.join(char for char in file_name if char.isalnum() or char in (' ', '_', '-', '.'))
-
 async def upload_to_s3(s3, content, bucket, object_name):
     try:
         await s3.put_object(Body=content, Bucket=bucket, Key=object_name)
@@ -217,8 +214,8 @@ async def process_job(year):
                     tasks = []
                     for record in search_results['data']['data']:
                         doc_id = record['id']
-                        esas_no = record['esasNo']
-                        karar_no = record['kararNo']
+                        esas_no = record['esasNo'].replace('/', ' ')
+                        karar_no = record['kararNo'].replace('/', ' ')
                         
                         task = asyncio.create_task(process_document(session, s3, year, doc_id, esas_no, karar_no))
                         tasks.append(task)
@@ -238,23 +235,22 @@ async def process_job(year):
                 update_year_status(year, "pending")  # Reset status to allow retry
 
 async def process_document(session, s3, year, doc_id, esas_no, karar_no):
-    file_name = f"{year}/Esas:{esas_no.replace('/', ' ')} Karar:{karar_no.replace('/', ' ')}.txt"
-    sanitized_file_name = sanitize_file_name(file_name)
+    file_name = f"{year}/Esas:{esas_no} Karar:{karar_no}.txt"
     
     try:
         # Check if the file already exists in S3
-        await s3.head_object(Bucket=AWS_BUCKET_NAME, Key=sanitized_file_name)
-        logger.info(f"File {sanitized_file_name} already exists in S3, skipping upload")
+        await s3.head_object(Bucket=AWS_BUCKET_NAME, Key=file_name)
+        logger.info(f"File {file_name} already exists in S3, skipping upload")
     except ClientError as e:
         if e.response['Error']['Code'] == '404':
             # File doesn't exist, proceed with processing and upload
             document = await get_document(session, doc_id)
             text_content = extract_text_from_html(document['data'])
-            await upload_to_s3(s3, text_content, AWS_BUCKET_NAME, sanitized_file_name)
-            logger.info(f"Uploaded file {sanitized_file_name} to S3")
+            await upload_to_s3(s3, text_content, AWS_BUCKET_NAME, file_name)
+            logger.info(f"Uploaded file {file_name} to S3")
         else:
             # Some other error occurred
-            logger.error(f"Error checking S3 for file {sanitized_file_name}: {str(e)}")
+            logger.error(f"Error checking S3 for file {file_name}: {str(e)}")
             raise
 
 
