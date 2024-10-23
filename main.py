@@ -2,12 +2,14 @@
 import requests
 import gc
 from db_client import Document
+import os
 
 BASE_URL = "https://karararama.yargitay.gov.tr"
 SEARCH_URL = f"{BASE_URL}/aramadetaylist"
 DOCUMENT_URL = f"{BASE_URL}/getDokuman"
 
 def search_records(year, start_number, end_number, page=1):
+    print(f'searching records for {year} for {page} page')
     payload = {
         "data": {
             "esasYil": str(year),
@@ -17,19 +19,25 @@ def search_records(year, start_number, end_number, page=1):
             "pageNumber": page,
         }
     }
-
-
-    resp = requests.post(
+    try:
+        resp = requests.post(
         url=SEARCH_URL,
         json=payload
-    )
-    try:
+        )
+        print(resp.text)
         resp = resp.json().get("data").get("data")
         if not resp:
+            print('fucked')
             return
 
     except Exception as e:
-        return
+        print(f'request exception {e}')
+
+        # Check if a progress file exists to resume work
+        if os.path.exists("progress_file.txt"):
+            with open("progress_file.txt", 'a') as f:
+                f.write(f"{year}-{page} \n")
+        
 
     documents = []
     for obj in resp:
@@ -43,3 +51,5 @@ def search_records(year, start_number, end_number, page=1):
     Document.objects.bulk_create(documents)
     del documents
     gc.collect()
+
+#search_records(2009, 1, 99999, 2506)

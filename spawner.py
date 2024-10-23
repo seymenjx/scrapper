@@ -24,9 +24,6 @@ year_max_page = [
     (2024, 439),
 ]
 
-def search_records(year, start_number, end_number, page=1):
-    # Your actual implementation goes here
-    print(f"Processing Year: {year}, Page: {page}")
 
 def worker(year, start_page, end_page):
     progress_file = f"progress_{year}_{start_page}_{end_page}.txt"

@@ -68,6 +68,6 @@ class Document(db.Model):
 
 Document._meta.db_table = 'document' # <-- this is also required; otherwise, django assumes the table is named `{appname}_{tablename}`, which in this case would be 'isolated_test'
 
-# db.create_table(Document) # <-- this is required if the table doesnt already exist; could probably even make this happen automatically when initializing the table
+#db.create_table(Document) # <-- this is required if the table doesnt already exist; could probably even make this happen automatically when initializing the table
 
-# print(Document.objects.all())
+#print(Document.objects.all().count())
