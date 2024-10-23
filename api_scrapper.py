@@ -195,34 +195,58 @@ async def process_job(year):
         update_year_status(year, "pending")
         return
 
-    start_number = progress['where_it_left_off']
-    end_number = progress['end']
-    current_page = progress['page']
+    start_number = progress.get('where_it_left_off')
+    end_number = progress.get('end')
+    current_page = progress.get('page', 1)
+
+    if start_number is None or end_number is None:
+        logger.error(f"Invalid progress data for year {year}: {progress}")
+        update_year_status(year, "pending")
+        return
 
     async with aiohttp.ClientSession() as session:
         async with aioboto3.Session().client('s3',
                                              aws_access_key_id=AWS_ACCESS_KEY_ID,
                                              aws_secret_access_key=AWS_SECRET_ACCESS_KEY) as s3:
             try:
-                while True:
-                    search_results = await search_records(session, year, start_number, end_number, current_page)
+                while start_number <= end_number:
+                    batch_end = min(start_number + 99, end_number)
+                    logger.info(f"Processing batch for year {year}: {start_number} to {batch_end}")
                     
-                    if not search_results.get('data', {}).get('data'):
-                        logger.info(f"No more results for year {year}")
+                    search_results = await search_records(session, year, start_number, batch_end, current_page)
+                    
+                    if not search_results:
+                        logger.error(f"No search results returned for year {year}")
                         break
 
+                    data = search_results.get('data', {})
+                    if not data:
+                        logger.error(f"No 'data' field in search results for year {year}")
+                        break
+
+                    records = data.get('data')
+                    if not records:
+                        logger.info(f"No more results for year {year} in range {start_number} to {batch_end}")
+                        start_number = batch_end + 1
+                        current_page = 1
+                        continue
+
                     tasks = []
-                    for record in search_results['data']['data']:
-                        doc_id = record['id']
-                        esas_no = record['esasNo'].replace('/', ' ')
-                        karar_no = record['kararNo'].replace('/', ' ')
+                    for record in records:
+                        doc_id = record.get('id')
+                        esas_no = record.get('esasNo')
+                        karar_no = record.get('kararNo')
                         
-                        task = asyncio.create_task(process_document(session, s3, year, doc_id, esas_no, karar_no))
-                        tasks.append(task)
+                        if doc_id and esas_no and karar_no:
+                            task = asyncio.create_task(process_document(session, s3, year, doc_id, esas_no, karar_no))
+                            tasks.append(task)
+                        else:
+                            logger.warning(f"Incomplete record data for year {year}: {record}")
 
                     await asyncio.gather(*tasks)
                     
-                    start_number = int(search_results['data']['data'][-1]['esasNo'].split('/')[1])
+                    last_processed = int(records[-1]['esasNo'].split('/')[1])
+                    start_number = last_processed + 1
                     save_progress(year, current_page, end_number, start_number)
 
                     current_page += 1
@@ -233,7 +257,6 @@ async def process_job(year):
             except Exception as e:
                 logger.error(f"Error processing year {year}: {str(e)}")
                 update_year_status(year, "pending")  # Reset status to allow retry
-
 async def process_document(session, s3, year, doc_id, esas_no, karar_no):
     file_name = f"{year}/Esas:{esas_no} Karar:{karar_no}.txt"
     
